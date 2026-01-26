@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "209222961972",
+    "project_id": "yourbagbuddy-ai",
+    "storage_bucket": "yourbagbuddy-ai.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:209222961972:android:7fff7baa9c7d3640f67361",
+        "android_client_info": {
+          "package_name": "com.example.yourbagbuddy"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBH3yN4XhQPgIK7-8J-LURxy3aDePOUhsg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
