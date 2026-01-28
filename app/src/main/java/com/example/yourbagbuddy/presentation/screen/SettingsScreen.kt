@@ -8,8 +8,12 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -21,10 +25,15 @@ fun SettingsScreen(
     isDarkTheme: Boolean,
     onDarkThemeChange: (Boolean) -> Unit,
     onNavigateBack: () -> Unit,
+    onNavigateToLogin: () -> Unit,
+    onNavigateToSignUp: () -> Unit,
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val currentUser by viewModel.currentUser.collectAsState(initial = null)
+    var showAuthChoiceDialog by remember { mutableStateOf(false) }
+    var showSignOutConfirmDialog by remember { mutableStateOf(false) }
+    val context = LocalContext.current
     
     Scaffold(
         topBar = {
@@ -44,6 +53,80 @@ fun SettingsScreen(
                 .padding(horizontal = 20.dp, vertical = 16.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
+            if (showAuthChoiceDialog) {
+                AlertDialog(
+                    onDismissRequest = { showAuthChoiceDialog = false },
+                    title = {
+                        Text(
+                            text = "Sign in",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold
+                        )
+                    },
+                    text = {
+                        Text(
+                            text = "Choose whether you want to log in to an existing account or create a new one.",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    },
+                    confirmButton = {
+                        TextButton(
+                            onClick = {
+                                showAuthChoiceDialog = false
+                                onNavigateToLogin()
+                            }
+                        ) {
+                            Text("Log In")
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(
+                            onClick = {
+                                showAuthChoiceDialog = false
+                                onNavigateToSignUp()
+                            }
+                        ) {
+                            Text("Sign Up")
+                        }
+                    }
+                )
+            }
+
+            if (showSignOutConfirmDialog) {
+                AlertDialog(
+                    onDismissRequest = { showSignOutConfirmDialog = false },
+                    title = {
+                        Text(
+                            text = "Sign out?",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold
+                        )
+                    },
+                    text = {
+                        Text(
+                            text = "Are you sure you want to sign out?",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    },
+                    confirmButton = {
+                        TextButton(
+                            onClick = {
+                                showSignOutConfirmDialog = false
+                                viewModel.signOut()
+                            }
+                        ) {
+                            Text("Sign Out")
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(
+                            onClick = { showSignOutConfirmDialog = false }
+                        ) {
+                            Text("Changed my mind")
+                        }
+                    }
+                )
+            }
         
             // Account Section
             Card(
@@ -72,7 +155,7 @@ fun SettingsScreen(
                         style = MaterialTheme.typography.bodyMedium
                     )
                     Button(
-                        onClick = { viewModel.signOut() },
+                        onClick = { showSignOutConfirmDialog = true },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(
@@ -101,7 +184,7 @@ fun SettingsScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Button(
-                        onClick = { /* Navigate to login */ },
+                    onClick = { showAuthChoiceDialog = true },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(
@@ -183,12 +266,32 @@ fun SettingsScreen(
                     style = MaterialTheme.typography.bodyMedium
                 )
                 TextButton(
-                    onClick = { /* Show privacy policy */ },
+                    onClick = {
+                        val intent = android.content.Intent(
+                            android.content.Intent.ACTION_VIEW,
+                            android.net.Uri.parse("https://docs.google.com/document/d/1eYbU6c20GbjzdEyLpQhNzXduVeJLu9u7bzA8BlfnYC0/edit?usp=sharing")
+                        )
+                        context.startActivity(intent)
+                    },
                     colors = ButtonDefaults.textButtonColors(
                         contentColor = MaterialTheme.colorScheme.primary
                     )
                 ) {
                     Text("Privacy Policy")
+                }
+                TextButton(
+                    onClick = {
+                        val intent = android.content.Intent(
+                            android.content.Intent.ACTION_VIEW,
+                            android.net.Uri.parse("https://docs.google.com/document/d/1FJnkDFumjrXnjUZce7mBwTNZYfWag1AI7T6K7bZPP2A/edit?usp=sharing")
+                        )
+                        context.startActivity(intent)
+                    },
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.primary
+                    )
+                ) {
+                    Text("Terms & Conditions")
                 }
             }
         }

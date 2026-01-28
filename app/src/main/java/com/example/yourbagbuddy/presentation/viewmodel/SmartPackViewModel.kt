@@ -176,8 +176,8 @@ class SmartPackViewModel @Inject constructor(
 data class SmartPackUiState(
     val destination: String = "",
     val month: String = "",
-    val tripDuration: Int = 1,
-    val numberOfPeople: Int = 1,
+    val tripDuration: Int = 0,
+    val numberOfPeople: Int = 0,
     val tripType: TripType = TripType.VACATION,
     val isLoading: Boolean = false,
     val generatedItems: List<ChecklistItem> = emptyList(),

@@ -30,8 +30,7 @@ fun ModernTopAppBar(
                 IconButton(onClick = onBackClick) {
                     Icon(
                         Icons.Default.ArrowBack,
-                        contentDescription = "Back",
-                        tint = MaterialTheme.colorScheme.onPrimary
+                        contentDescription = "Back"
                     )
                 }
             }

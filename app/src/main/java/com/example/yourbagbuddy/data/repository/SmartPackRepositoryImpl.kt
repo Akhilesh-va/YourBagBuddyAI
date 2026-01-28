@@ -1,13 +1,12 @@
 package com.example.yourbagbuddy.data.repository
 
-import com.example.yourbagbuddy.data.remote.ai.ChatCompletionRequest
-import com.example.yourbagbuddy.data.remote.ai.ChatMessage
-import com.example.yourbagbuddy.data.remote.ai.InvalidAiResponseException
-import com.example.yourbagbuddy.data.remote.ai.PackingChecklistPromptBuilder
-import com.example.yourbagbuddy.data.remote.ai.PackingChecklistResponseParser
-import com.example.yourbagbuddy.data.remote.ai.ZaiChatService
+import android.util.Log
+import com.example.yourbagbuddy.data.remote.api.BackendApiService
+import com.example.yourbagbuddy.data.remote.api.PackingListRequest
 import com.example.yourbagbuddy.domain.model.ChecklistItem
+import com.example.yourbagbuddy.domain.model.ItemCategory
 import com.example.yourbagbuddy.domain.model.SmartPackRequest
+import com.example.yourbagbuddy.domain.repository.AuthRepository
 import com.example.yourbagbuddy.domain.repository.SmartPackRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -17,83 +16,79 @@ import java.net.SocketTimeoutException
 import java.net.UnknownHostException
 import javax.inject.Inject
 
+private const val TAG = "SmartPackRepository"
+
 /**
- * Production-ready SmartPackRepository implementation that delegates to
- * an AI provider (currently OpenRouter's OpenAI-compatible API) to generate
- * structured packing lists.
+ * Production-ready SmartPackRepository implementation that calls the
+ * YourBagBuddy backend API to generate AI-powered packing lists.
+ *
+ * The backend handles all AI provider interactions server-side, keeping
+ * API keys secure. Auth is via Firebase ID token sent in the Authorization header.
  *
  * The rest of the app talks only in terms of [SmartPackRequest] and
- * [ChecklistItem]; all provider-specific details (prompts, JSON formats,
- * HTTP errors) are fully contained in the data layer.
+ * [ChecklistItem]; all backend/network details are contained in the data layer.
  */
 class SmartPackRepositoryImpl @Inject constructor(
-    private val zaiChatService: ZaiChatService,
-    private val promptBuilder: PackingChecklistPromptBuilder,
-    private val responseParser: PackingChecklistResponseParser
+    private val backendApiService: BackendApiService,
+    private val authRepository: AuthRepository
 ) : SmartPackRepository {
-
-    // Tuned for predictable, low-cost, low-variance responses.
-    // Use an OpenRouter model identifier.
-    private val modelName = "openai/gpt-4.1-mini"
-    private val temperature = 0.2
-    private val maxTokens = 512
 
     override suspend fun generatePackingList(request: SmartPackRequest): Result<List<ChecklistItem>> {
         return withContext(Dispatchers.IO) {
             try {
-                val prompt = promptBuilder.build(request)
-
-                val apiRequest = ChatCompletionRequest(
-                    model = modelName,
-                    messages = listOf(
-                        ChatMessage(
-                            role = "system",
-                            content = prompt.system
-                        ),
-                        ChatMessage(
-                            role = "user",
-                            content = prompt.user
-                        )
-                    ),
-                    temperature = temperature,
-                    maxTokens = maxTokens,
-                    stream = false
-                )
-
-                val response = zaiChatService.createChatCompletion(apiRequest)
-
-                val content = response.choices
-                    ?.firstOrNull()
-                    ?.message
-                    ?.content
-                    ?.trim()
+                // Get Firebase ID token for authentication
+                val idToken = authRepository.getIdToken()
                     ?: return@withContext Result.failure(
-                        SmartPackError.AiFailure("AI did not return any content.")
+                        SmartPackError.AuthRequired("Please sign in to generate a packing list.")
                     )
 
-                // Validate and normalise content into domain-safe checklist items.
-                val parsedResult = responseParser.parseToChecklistItems(content)
+                // Log the token for debugging (remove in production!)
+                Log.d(TAG, "Firebase ID Token: $idToken")
+                Log.d(TAG, "Token length: ${idToken.length}")
 
-                parsedResult.fold(
-                    onSuccess = { items -> Result.success(items) },
-                    onFailure = { error ->
-                        if (error is InvalidAiResponseException) {
-                            Result.failure(
-                                SmartPackError.InvalidAiResponse(
-                                    userFacingMessage = "We couldn't understand the AI response. Please try again.",
-                                    cause = error
-                                )
-                            )
-                        } else {
-                            Result.failure(
-                                SmartPackError.AiFailure(
-                                    message = "Unexpected AI response error.",
-                                    cause = error
-                                )
-                            )
-                        }
-                    }
+                val authHeader = "Bearer $idToken"
+
+                // Map domain model to API request
+                val apiRequest = PackingListRequest(
+                    destination = request.destination,
+                    month = request.month,
+                    tripDuration = request.tripDuration,
+                    numberOfPeople = request.numberOfPeople,
+                    tripType = request.tripType.name.lowercase()
                 )
+
+                Log.d(TAG, "Sending request: $apiRequest")
+
+                val response = backendApiService.generatePackingList(authHeader, apiRequest)
+
+                Log.d(TAG, "Response received: items=${response.items?.size}, error=${response.error}")
+
+                // Check for error in response
+                if (response.error != null) {
+                    return@withContext Result.failure(
+                        SmartPackError.AiFailure(response.error)
+                    )
+                }
+
+                // Map API response to domain model
+                val items = response.items?.map { dto ->
+                    ChecklistItem(
+                        id = java.util.UUID.randomUUID().toString(),
+                        tripId = "", // Will be set when saved to a trip
+                        name = dto.name,
+                        category = mapCategory(dto.category),
+                        isPacked = false
+                    )
+                } ?: emptyList()
+
+                if (items.isEmpty()) {
+                    return@withContext Result.failure(
+                        SmartPackError.AiFailure("No items were generated. Please try again.")
+                    )
+                }
+
+                Result.success(items)
+
             } catch (e: UnknownHostException) {
                 Result.failure(
                     SmartPackError.NetworkUnavailable(
@@ -109,10 +104,10 @@ class SmartPackRepositoryImpl @Inject constructor(
                     )
                 )
             } catch (e: HttpException) {
-                val message = if (e.code() == 429) {
-                    "The AI service is receiving too many requests. Please wait a moment and try again."
-                } else {
-                    "The AI service is currently unavailable. Please try again."
+                val message = when (e.code()) {
+                    401 -> "Your session has expired. Please sign in again."
+                    429 -> "The AI service is receiving too many requests. Please wait a moment and try again."
+                    else -> "The AI service is currently unavailable. Please try again."
                 }
                 Result.failure(SmartPackError.AiFailure(message, e))
             } catch (e: IOException) {
@@ -131,6 +126,18 @@ class SmartPackRepositoryImpl @Inject constructor(
                     )
                 )
             }
+        }
+    }
+
+    /**
+     * Maps a category string from the API to the domain ItemCategory enum.
+     */
+    private fun mapCategory(category: String?): ItemCategory {
+        return when (category?.uppercase()) {
+            "CLOTHES", "CLOTHING" -> ItemCategory.CLOTHES
+            "ESSENTIALS", "ESSENTIAL" -> ItemCategory.ESSENTIALS
+            "DOCUMENTS", "DOCUMENT" -> ItemCategory.DOCUMENTS
+            else -> ItemCategory.OTHER
         }
     }
 }
@@ -167,6 +174,11 @@ sealed class SmartPackError(
     ) : SmartPackError(userFacingMessage, cause)
 
     class AiFailure(
+        message: String,
+        cause: Throwable? = null
+    ) : SmartPackError(message, cause)
+
+    class AuthRequired(
         message: String,
         cause: Throwable? = null
     ) : SmartPackError(message, cause)

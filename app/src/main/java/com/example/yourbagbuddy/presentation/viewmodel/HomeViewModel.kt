@@ -17,7 +17,8 @@ import javax.inject.Inject
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     private val getAllTripsUseCase: GetAllTripsUseCase,
-    private val authRepository: AuthRepository
+    private val authRepository: AuthRepository,
+    private val travelTipService: TravelTipService
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(HomeUiState())
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
@@ -49,7 +50,7 @@ class HomeViewModel @Inject constructor(
     }
 
     /**
-     * Fetch an AI-generated travel tip from OpenRouter and update UI state.
+     * Fetch an AI-generated travel tip from the backend and update UI state.
      * Falls back to the static tip provider if anything goes wrong.
      */
     fun refreshAiTip() {
@@ -62,7 +63,7 @@ class HomeViewModel @Inject constructor(
             val fallbackTip = TravelTipsProvider.getTipForToday()
 
             try {
-                val aiTip = OpenRouterTravelAi.fetchTravelTip()
+                val aiTip = travelTipService.fetchTravelTip()
                 _uiState.value = _uiState.value.copy(
                     isAiTipLoading = false,
                     aiTip = aiTip,

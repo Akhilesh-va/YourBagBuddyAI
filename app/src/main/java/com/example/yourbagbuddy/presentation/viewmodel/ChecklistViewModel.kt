@@ -88,11 +88,9 @@ class ChecklistViewModel @Inject constructor(
     private fun updateUiState(items: List<ChecklistItem>) {
         val currentTripId = selectedTripId.value
 
-        // If a checklist (trip) has no items at all, remove the parent checklist.
-        // This covers the case where a checklist was created but no items were ever added.
-        // We only auto-delete when the previous totalCount was already 0 to avoid
-        // double-deleting after the "last item deleted" path, which already deletes the trip.
-        if (currentTripId != null && items.isEmpty() && _uiState.value.totalCount == 0) {
+        // Only auto-delete the trip when the user had items and deleted the last one.
+        // Do NOT delete when totalCount is already 0 (e.g. newly created empty checklist).
+        if (currentTripId != null && items.isEmpty() && _uiState.value.totalCount > 0) {
             viewModelScope.launch {
                 deleteTripUseCase(currentTripId)
                 selectedTripId.value = null

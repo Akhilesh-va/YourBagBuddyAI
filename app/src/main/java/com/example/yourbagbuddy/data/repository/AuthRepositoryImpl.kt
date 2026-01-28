@@ -2,10 +2,12 @@ package com.example.yourbagbuddy.data.repository
 
 import android.app.Activity
 import android.content.Context
+import android.content.SharedPreferences
 import android.os.CancellationSignal
 import com.example.yourbagbuddy.BuildConfig
 import com.example.yourbagbuddy.domain.model.User
 import com.example.yourbagbuddy.domain.repository.AuthRepository
+import com.google.firebase.auth.ActionCodeSettings
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.GoogleAuthProvider
 import com.google.firebase.auth.PhoneAuthCredential
@@ -42,6 +44,9 @@ class AuthRepositoryImpl @Inject constructor(
     private val usersCollection
         get() = firestore.collection(USERS_COLLECTION)
 
+    private val authPrefs: SharedPreferences
+        get() = context.getSharedPreferences(PREFS_AUTH, Context.MODE_PRIVATE)
+
     override val currentUser: Flow<User?>
         get() = callbackFlow {
             val listener = FirebaseAuth.AuthStateListener { auth ->
@@ -56,7 +61,13 @@ class AuthRepositoryImpl @Inject constructor(
 
     override suspend fun getCurrentUser(): User? {
         val fbUser = firebaseAuth.currentUser ?: return null
-        return loadUserWithProfile(fbUser)
+        return try {
+            loadUserWithProfile(fbUser)
+        } catch (e: Exception) {
+            // If Firestore is unavailable (e.g., offline or DB not created),
+            // fall back to a minimal user from FirebaseAuth instead of crashing.
+            fbUser.toDomainMinimal()
+        }
     }
 
     override suspend fun sendPhoneOtp(phoneNumber: String, activity: Activity): Result<String> {
@@ -198,6 +209,65 @@ class AuthRepositoryImpl @Inject constructor(
         )
     }
 
+    override suspend fun sendSignInLinkToEmail(email: String): Result<Unit> {
+        return try {
+            // Firebase Hosting default domain; must be in Authorized domains in Firebase Console
+            val continueUrl = "https://${FIREBASE_AUTH_LINK_HOST}/__/auth/links"
+            val actionCodeSettings = ActionCodeSettings.newBuilder()
+                .setUrl(continueUrl)
+                .setHandleCodeInApp(true)
+                .setAndroidPackageName(
+                    context.packageName,
+                    true,  // installIfNotAvailable
+                    null   // minimumVersion
+                )
+                .build()
+            firebaseAuth.sendSignInLinkToEmail(email.trim(), actionCodeSettings).await()
+            setPendingEmailForLink(email.trim())
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun signInWithEmailLink(email: String, link: String): Result<User> {
+        return try {
+            val result = firebaseAuth.signInWithEmailLink(email.trim(), link.trim()).await()
+            val user = result.user?.let { loadUserWithProfile(it) }
+                ?: return Result.failure(Exception("Sign in failed"))
+            Result.success(user)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override fun setPendingEmailForLink(email: String) {
+        authPrefs.edit().putString(KEY_PENDING_EMAIL_LINK, email).apply()
+    }
+
+    override fun getPendingEmailForLink(): String? {
+        return authPrefs.getString(KEY_PENDING_EMAIL_LINK, null)?.takeIf { it.isNotBlank() }
+    }
+
+    override fun setPendingEmailLink(link: String) {
+        authPrefs.edit().putString(KEY_PENDING_LINK_URL, link).apply()
+    }
+
+    override fun getAndClearPendingEmailLink(): String? {
+        val link = authPrefs.getString(KEY_PENDING_LINK_URL, null)?.takeIf { it.isNotBlank() }
+        if (link != null) authPrefs.edit().remove(KEY_PENDING_LINK_URL).apply()
+        return link
+    }
+
+    override fun storePendingEmailLinkIfSignInLink(link: String): Boolean {
+        return if (firebaseAuth.isSignInWithEmailLink(link)) {
+            setPendingEmailLink(link)
+            true
+        } else {
+            false
+        }
+    }
+
     override suspend fun signOut(): Result<Unit> {
         return try {
             firebaseAuth.signOut()
@@ -207,19 +277,32 @@ class AuthRepositoryImpl @Inject constructor(
         }
     }
 
+    override suspend fun getIdToken(forceRefresh: Boolean): String? {
+        return try {
+            firebaseAuth.currentUser?.getIdToken(forceRefresh)?.await()?.token
+        } catch (e: Exception) {
+            null
+        }
+    }
+
     private suspend fun loadUserWithProfile(fbUser: FirebaseUser): User {
-        val snapshot = usersCollection.document(fbUser.uid).get().await()
-        val name = snapshot.getString(KEY_DISPLAY_NAME)
-        val email = snapshot.getString(KEY_EMAIL) ?: fbUser.email
-        val phone = snapshot.getString(KEY_PHONE) ?: fbUser.phoneNumber
-        val updatedAt = snapshot.getTimestamp(KEY_UPDATED_AT)?.toDate()?.time
-        return User(
-            id = fbUser.uid,
-            email = email,
-            displayName = name ?: fbUser.displayName,
-            phoneNumber = phone,
-            createdAtMs = updatedAt
-        )
+        return try {
+            val snapshot = usersCollection.document(fbUser.uid).get().await()
+            val name = snapshot.getString(KEY_DISPLAY_NAME)
+            val email = snapshot.getString(KEY_EMAIL) ?: fbUser.email
+            val phone = snapshot.getString(KEY_PHONE) ?: fbUser.phoneNumber
+            val updatedAt = snapshot.getTimestamp(KEY_UPDATED_AT)?.toDate()?.time
+            User(
+                id = fbUser.uid,
+                email = email,
+                displayName = name ?: fbUser.displayName,
+                phoneNumber = phone,
+                createdAtMs = updatedAt
+            )
+        } catch (e: Exception) {
+            // If Firestore profile fetch fails, degrade gracefully to minimal info.
+            fbUser.toDomainMinimal()
+        }
     }
 
     private fun FirebaseUser.toDomainMinimal(): User = User(
@@ -241,5 +324,9 @@ class AuthRepositoryImpl @Inject constructor(
         private const val KEY_EMAIL = "email"
         private const val KEY_PHONE = "phoneNumber"
         private const val KEY_UPDATED_AT = "updatedAt"
+        private const val PREFS_AUTH = "auth_prefs"
+        private const val KEY_PENDING_EMAIL_LINK = "pending_email_for_link"
+        private const val KEY_PENDING_LINK_URL = "pending_email_link_url"
+        private const val FIREBASE_AUTH_LINK_HOST = "yourbagbuddy-ai.firebaseapp.com"
     }
 }

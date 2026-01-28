@@ -14,6 +14,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "209222961972-4qu9sttq7em23l03stt9cem4o9u5magq.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.yourbagbuddy",
+            "certificate_hash": "030c2b85761618c9a6fd26a02d4638c2c7e135f2"
+          }
+        },
+        {
           "client_id": "209222961972-tgldhaqo71b9trlb5h1o9ck730rl6f0c.apps.googleusercontent.com",
           "client_type": 3
         }

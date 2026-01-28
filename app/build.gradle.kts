@@ -27,16 +27,24 @@ android {
         // API keys are provided via Gradle properties and exposed only through BuildConfig.
         // Never hardcode real keys in source. Define ZAI_API_KEY in local.properties or
         // your CI environment and keep it out of version control.
-        // Read the API keys from local.properties (or other Gradle properties).
+        // Read the API keys and backend base URL from local.properties (or other Gradle properties).
         // Using gradleLocalProperties ensures values from local.properties are loaded,
         // which are NOT automatically exposed as project properties.
         // In recent AGP versions, gradleLocalProperties requires the ProviderFactory (`providers`) argument.
         val zaiApiKey = gradleLocalProperties(rootDir, providers).getProperty("ZAI_API_KEY", "")
         val openRouterApiKey = gradleLocalProperties(rootDir, providers).getProperty("OPENROUTER_API_KEY", "")
         val googleWebClientId = gradleLocalProperties(rootDir, providers).getProperty("GOOGLE_WEB_CLIENT_ID", "")
+        // Backend base URL used by the app to talk to YourBagBuddy backend.
+        // You can override this per-environment via local.properties or CI env vars.
+        val apiBaseUrl = gradleLocalProperties(rootDir, providers)
+            .getProperty(
+                "API_BASE_URL",
+                "https://your-back-buddy-backend.vercel.app/"
+            )
         buildConfigField("String", "ZAI_API_KEY", "\"$zaiApiKey\"")
         buildConfigField("String", "OPENROUTER_API_KEY", "\"$openRouterApiKey\"")
         buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"$googleWebClientId\"")
+        buildConfigField("String", "API_BASE_URL", "\"$apiBaseUrl\"")
     }
 
     buildTypes {
@@ -71,6 +79,7 @@ dependencies {
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
+    implementation("androidx.compose.material:material-icons-extended")
     
     // Firebase
     implementation(libs.firebase.auth)

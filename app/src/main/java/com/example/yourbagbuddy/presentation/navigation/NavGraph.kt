@@ -41,7 +41,9 @@ fun NavGraph(
 ) {
     NavHost(
         navController = navController,
-        startDestination = Screen.Login.route,
+        // Users land on Home after splash, regardless of auth state.
+        // Auth is required only when using AI-related features.
+        startDestination = Screen.Home.route,
         modifier = modifier
     ) {
         composable(Screen.Login.route) {
@@ -99,6 +101,12 @@ fun NavGraph(
         composable(Screen.BestChoices.route) {
             SmartPackScreen(
                 onNavigateToAiList = { navController.navigate(Screen.AiList.route) },
+                onNavigateToLogin = {
+                    navController.navigate(Screen.Login.route)
+                },
+                onNavigateToSignUp = {
+                    navController.navigate(Screen.SignUp.route)
+                },
                 onNavigateBack = { navController.popBackStack() }
             )
         }
@@ -106,7 +114,9 @@ fun NavGraph(
             SettingsScreen(
                 isDarkTheme = isDarkTheme,
                 onDarkThemeChange = onDarkThemeChange,
-                onNavigateBack = { navController.popBackStack() }
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateToLogin = { navController.navigate(Screen.Login.route) },
+                onNavigateToSignUp = { navController.navigate(Screen.SignUp.route) }
             )
         }
         // Internal navigation screens (not in bottom nav)
@@ -121,6 +131,12 @@ fun NavGraph(
         composable(Screen.SmartPack.route) {
             SmartPackScreen(
                 onNavigateToAiList = { navController.navigate(Screen.AiList.route) },
+                onNavigateToLogin = {
+                    navController.navigate(Screen.Login.route)
+                },
+                onNavigateToSignUp = {
+                    navController.navigate(Screen.SignUp.route)
+                },
                 onNavigateBack = { navController.popBackStack() }
             )
         }
@@ -128,7 +144,9 @@ fun NavGraph(
             SettingsScreen(
                 isDarkTheme = isDarkTheme,
                 onDarkThemeChange = onDarkThemeChange,
-                onNavigateBack = { navController.popBackStack() }
+                 onNavigateBack = { navController.popBackStack() },
+                onNavigateToLogin = { navController.navigate(Screen.Login.route) },
+                onNavigateToSignUp = { navController.navigate(Screen.SignUp.route) }
             )
         }
         composable(Screen.TripDetail.route) { backStackEntry ->

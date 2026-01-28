@@ -139,7 +139,9 @@ fun ChecklistScreen(
                         item {
                             AssistChip(
                                 onClick = {
+                                    // Show name dialog so user names the checklist; don't create blank ones.
                                     pendingItemName = ""
+                                    checklistNameText = ""
                                     showChecklistNameDialog = true
                                 },
                                 label = { Text("New") },

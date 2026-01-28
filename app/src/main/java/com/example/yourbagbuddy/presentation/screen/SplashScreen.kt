@@ -20,12 +20,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.airbnb.lottie.compose.LottieAnimation
 import com.airbnb.lottie.compose.LottieCompositionSpec
-import com.airbnb.lottie.compose.animateLottieCompositionAsState
+import com.airbnb.lottie.compose.LottieConstants
 import com.airbnb.lottie.compose.rememberLottieComposition
 import com.example.yourbagbuddy.R
 import kotlinx.coroutines.delay
@@ -37,10 +39,6 @@ fun SplashScreen(
 ) {
     val composition by rememberLottieComposition(
         LottieCompositionSpec.RawRes(R.raw.splash_traveller)
-    )
-    val progress by animateLottieCompositionAsState(
-        composition = composition,
-        iterations = 1
     )
 
     // Keep splash for a fixed 3 seconds
@@ -70,6 +68,8 @@ fun SplashScreen(
         label = "textAlpha"
     )
 
+    val logoFontFamily = FontFamily(Font(R.font.splash_logo_text_font))
+
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -77,27 +77,31 @@ fun SplashScreen(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        LottieAnimation(
-            composition = composition,
-            progress = { progress },
-            modifier = Modifier.size(320.dp)
-        )
+        composition?.let {
+            LottieAnimation(
+                composition = it,
+                iterations = LottieConstants.IterateForever,
+                modifier = Modifier.size(320.dp)
+            )
 
-        Text(
-            text = "You Bag Buddy",
-            style = MaterialTheme.typography.headlineMedium.copy(
-                fontWeight = FontWeight.Bold,
-                fontSize = 52.sp,
-                color = Color(0xFF006837)
-            ),
-            modifier = Modifier
-                .padding(top = 16.dp)
-                .graphicsLayer(
-                    scaleX = textScale,
-                    scaleY = textScale,
-                    alpha = textAlpha
-                )
-        )
+            Text(
+                text = "You Bag Buddy",
+                style = MaterialTheme.typography.headlineMedium.copy(
+                    fontFamily = logoFontFamily,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 40.sp,
+                    color = Color(0xFF006837),
+
+                ),
+                modifier = Modifier
+                    .padding(top = 16.dp)
+                    .graphicsLayer(
+                        scaleX = textScale,
+                        scaleY = textScale,
+                        alpha = textAlpha
+                    )
+            )
+        }
     }
 }
 

@@ -1,5 +1,6 @@
 package com.example.yourbagbuddy.presentation.screen
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -22,12 +23,23 @@ fun AiListScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
+    // Ensure that when the user navigates back (system back or gesture),
+    // we clear the "showResults" flag so SmartPackScreen doesn't auto‑navigate
+    // back to this screen again.
+    BackHandler {
+        viewModel.clearResults()
+        onNavigateBack()
+    }
+
     Scaffold(
         topBar = {
             com.example.yourbagbuddy.presentation.components.ModernTopAppBar(
                 title = "Here is your AI list",
                 showBackButton = true,
-                onBackClick = onNavigateBack
+                onBackClick = {
+                    viewModel.clearResults()
+                    onNavigateBack()
+                }
             )
         },
         containerColor = MaterialTheme.colorScheme.background
@@ -83,6 +95,7 @@ fun AiListScreen(
                     inlineActionLabel = if (hasSelectedItems) "Add to your List" else null,
                     onInlineActionClick = {
                         viewModel.addSelectedGeneratedItemsToChecklist()
+                        viewModel.clearResults()
                         onNavigateBack()
                     }
                 )
