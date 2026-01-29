@@ -5,8 +5,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.navArgument
 import com.example.yourbagbuddy.presentation.screen.ChecklistScreen
 import com.example.yourbagbuddy.presentation.screen.HomeScreen
 import com.example.yourbagbuddy.presentation.screen.LoginScreen
@@ -15,6 +17,12 @@ import com.example.yourbagbuddy.presentation.screen.SettingsScreen
 import com.example.yourbagbuddy.presentation.screen.SmartPackScreen
 import com.example.yourbagbuddy.presentation.screen.TripsScreen
 import com.example.yourbagbuddy.presentation.viewmodel.SmartPackViewModel
+
+/** Builds login route with optional return destination (bottom nav tab to open after sign-in). */
+fun loginRoute(returnTo: String = Screen.Home.route) = "login?returnTo=$returnTo"
+
+/** Builds signup route with optional return destination (bottom nav tab to open after sign-up). */
+fun signupRoute(returnTo: String = Screen.Home.route) = "signup?returnTo=$returnTo"
 
 sealed class Screen(val route: String) {
     object Login : Screen("login")
@@ -46,42 +54,59 @@ fun NavGraph(
         startDestination = Screen.Home.route,
         modifier = modifier
     ) {
-        composable(Screen.Login.route) {
+        composable(
+            route = "login?returnTo={returnTo}",
+            arguments = listOf(
+                navArgument("returnTo") { type = NavType.StringType; defaultValue = Screen.Home.route }
+            )
+        ) { backStackEntry ->
+            val returnTo = backStackEntry.arguments?.getString("returnTo") ?: Screen.Home.route
             LoginScreen(
                 onNavigateToHome = {
-                    navController.navigate(Screen.Home.route) {
-                        popUpTo(Screen.Login.route) { inclusive = true }
+                    navController.navigate(returnTo) {
+                        popUpTo(navController.graph.startDestinationId) { inclusive = true }
+                        launchSingleTop = true
                     }
                 },
-                onNavigateToSignUp = { navController.navigate(Screen.SignUp.route) },
+                onNavigateToSignUp = {
+                    navController.popBackStack()
+                    navController.navigate(signupRoute(returnTo))
+                },
                 onSignedIn = { user ->
                     if (user.hasCompleteProfile) {
-                        navController.navigate(Screen.Home.route) {
-                            popUpTo(Screen.Login.route) { inclusive = true }
+                        navController.navigate(returnTo) {
+                            popUpTo(navController.graph.startDestinationId) { inclusive = true }
+                            launchSingleTop = true
                         }
                     } else {
-                        navController.navigate(Screen.SignUp.route) {
-                            popUpTo(Screen.Login.route) { inclusive = true }
-                        }
+                        navController.popBackStack()
+                        navController.navigate(signupRoute(returnTo))
                     }
                 }
             )
         }
-        composable(Screen.SignUp.route) {
+        composable(
+            route = "signup?returnTo={returnTo}",
+            arguments = listOf(
+                navArgument("returnTo") { type = NavType.StringType; defaultValue = Screen.Home.route }
+            )
+        ) { backStackEntry ->
+            val returnTo = backStackEntry.arguments?.getString("returnTo") ?: Screen.Home.route
             SignupScreen(
                 onNavigateToHome = {
-                    navController.navigate(Screen.Home.route) {
-                        popUpTo(Screen.Login.route) { inclusive = true }
+                    navController.navigate(returnTo) {
+                        popUpTo(navController.graph.startDestinationId) { inclusive = true }
+                        launchSingleTop = true
                     }
                 },
                 onNavigateToLogin = {
-                    navController.navigate(Screen.Login.route) {
-                        popUpTo(Screen.SignUp.route) { inclusive = true }
-                    }
+                    navController.popBackStack()
+                    navController.navigate(loginRoute(returnTo))
                 },
                 onProfileSaved = {
-                    navController.navigate(Screen.Home.route) {
-                        popUpTo(Screen.Login.route) { inclusive = true }
+                    navController.navigate(returnTo) {
+                        popUpTo(navController.graph.startDestinationId) { inclusive = true }
+                        launchSingleTop = true
                     }
                 }
             )
@@ -102,10 +127,10 @@ fun NavGraph(
             SmartPackScreen(
                 onNavigateToAiList = { navController.navigate(Screen.AiList.route) },
                 onNavigateToLogin = {
-                    navController.navigate(Screen.Login.route)
+                    navController.navigate(loginRoute(Screen.BestChoices.route))
                 },
                 onNavigateToSignUp = {
-                    navController.navigate(Screen.SignUp.route)
+                    navController.navigate(signupRoute(Screen.BestChoices.route))
                 },
                 onNavigateBack = { navController.popBackStack() }
             )
@@ -115,8 +140,8 @@ fun NavGraph(
                 isDarkTheme = isDarkTheme,
                 onDarkThemeChange = onDarkThemeChange,
                 onNavigateBack = { navController.popBackStack() },
-                onNavigateToLogin = { navController.navigate(Screen.Login.route) },
-                onNavigateToSignUp = { navController.navigate(Screen.SignUp.route) }
+                onNavigateToLogin = { navController.navigate(loginRoute(Screen.Profile.route)) },
+                onNavigateToSignUp = { navController.navigate(signupRoute(Screen.Profile.route)) }
             )
         }
         // Internal navigation screens (not in bottom nav)
@@ -132,10 +157,10 @@ fun NavGraph(
             SmartPackScreen(
                 onNavigateToAiList = { navController.navigate(Screen.AiList.route) },
                 onNavigateToLogin = {
-                    navController.navigate(Screen.Login.route)
+                    navController.navigate(loginRoute(Screen.BestChoices.route))
                 },
                 onNavigateToSignUp = {
-                    navController.navigate(Screen.SignUp.route)
+                    navController.navigate(signupRoute(Screen.BestChoices.route))
                 },
                 onNavigateBack = { navController.popBackStack() }
             )
@@ -145,8 +170,8 @@ fun NavGraph(
                 isDarkTheme = isDarkTheme,
                 onDarkThemeChange = onDarkThemeChange,
                  onNavigateBack = { navController.popBackStack() },
-                onNavigateToLogin = { navController.navigate(Screen.Login.route) },
-                onNavigateToSignUp = { navController.navigate(Screen.SignUp.route) }
+                onNavigateToLogin = { navController.navigate(loginRoute(Screen.Profile.route)) },
+                onNavigateToSignUp = { navController.navigate(signupRoute(Screen.Profile.route)) }
             )
         }
         composable(Screen.TripDetail.route) { backStackEntry ->
@@ -164,6 +189,12 @@ fun NavGraph(
             val smartPackViewModel: SmartPackViewModel = hiltViewModel(parentEntry)
             com.example.yourbagbuddy.presentation.screen.AiListScreen(
                 onNavigateBack = { navController.popBackStack() },
+                onNavigateToChecklist = {
+                    navController.navigate(Screen.Checklist.route) {
+                        popUpTo(Screen.AiList.route) { inclusive = true }
+                        launchSingleTop = true
+                    }
+                },
                 viewModel = smartPackViewModel
             )
         }

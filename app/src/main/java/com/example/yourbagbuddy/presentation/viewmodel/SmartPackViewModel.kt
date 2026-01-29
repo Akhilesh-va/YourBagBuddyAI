@@ -105,6 +105,14 @@ class SmartPackViewModel @Inject constructor(
     }
 
     /**
+     * Select or deselect all generated items at once.
+     */
+    fun selectAllGeneratedItems(select: Boolean) {
+        val updatedItems = _uiState.value.generatedItems.map { it.copy(isPacked = select) }
+        updateState { it.copy(generatedItems = updatedItems) }
+    }
+
+    /**
      * Adds all checked generated items into the main Checklist feature
      * under a trip whose name/destination matches the SmartPack destination.
      */

@@ -15,7 +15,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.outlined.Star
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.yourbagbuddy.presentation.viewmodel.SettingsViewModel
 
@@ -33,6 +37,9 @@ fun SettingsScreen(
     val currentUser by viewModel.currentUser.collectAsState(initial = null)
     var showAuthChoiceDialog by remember { mutableStateOf(false) }
     var showSignOutConfirmDialog by remember { mutableStateOf(false) }
+    var showFeedbackDialog by remember { mutableStateOf(false) }
+    var feedbackMessage by remember { mutableStateOf("") }
+    var feedbackRating by remember { mutableStateOf(0) }
     val context = LocalContext.current
     
     Scaffold(
@@ -124,6 +131,39 @@ fun SettingsScreen(
                         ) {
                             Text("Changed my mind")
                         }
+                    }
+                )
+            }
+
+            if (showFeedbackDialog) {
+                FeedbackDialog(
+                    message = feedbackMessage,
+                    onMessageChange = { feedbackMessage = it },
+                    rating = feedbackRating,
+                    onRatingChange = { feedbackRating = it },
+                    sending = uiState.feedbackSending,
+                    success = uiState.feedbackSuccess,
+                    error = uiState.feedbackError,
+                    onDismiss = {
+                        showFeedbackDialog = false
+                        viewModel.clearFeedbackState()
+                        feedbackMessage = ""
+                        feedbackRating = 0
+                    },
+                    onSubmit = {
+                        viewModel.submitFeedback(
+                            message = feedbackMessage,
+                            rating = feedbackRating,
+                            name = currentUser?.displayName ?: currentUser?.email?.substringBefore('@') ?: "",
+                            emailId = currentUser?.email ?: ""
+                        )
+                    },
+                    onSuccessDismiss = {
+                        showFeedbackDialog = false
+                        viewModel.clearFeedbackState()
+                        feedbackMessage = ""
+                        feedbackRating = 0
+                        android.widget.Toast.makeText(context, "Thank you! Your feedback was sent.", android.widget.Toast.LENGTH_SHORT).show()
                     }
                 )
             }
@@ -240,6 +280,42 @@ fun SettingsScreen(
                 }
             }
         }
+
+            // Contact Us
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                ),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = "Contact Us",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "Share your feedback or report an issue",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    TextButton(
+                        onClick = { showFeedbackDialog = true },
+                        colors = ButtonDefaults.textButtonColors(
+                            contentColor = MaterialTheme.colorScheme.primary
+                        )
+                    ) {
+                        Text("Give Feedback")
+                    }
+                }
+            }
         
             // About
             Card(
@@ -295,6 +371,124 @@ fun SettingsScreen(
                 }
             }
         }
+        }
+    }
+}
+
+@Composable
+private fun FeedbackDialog(
+    message: String,
+    onMessageChange: (String) -> Unit,
+    rating: Int,
+    onRatingChange: (Int) -> Unit,
+    sending: Boolean,
+    success: Boolean?,
+    error: String?,
+    onDismiss: () -> Unit,
+    onSubmit: () -> Unit,
+    onSuccessDismiss: () -> Unit
+) {
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Text(
+                    text = if (success == true) "Thank you!" else "Give Feedback",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+                if (success == true) {
+                    Text(
+                        text = "Your feedback was sent. We'll get back to you if needed.",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Button(
+                        onClick = onSuccessDismiss,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                    ) {
+                        Text("OK")
+                    }
+                } else {
+                    OutlinedTextField(
+                        value = message,
+                        onValueChange = onMessageChange,
+                        label = { Text("Message / Issue") },
+                        placeholder = { Text("Describe your feedback or issue...") },
+                        modifier = Modifier.fillMaxWidth(),
+                        minLines = 3,
+                        maxLines = 5,
+                        enabled = !sending
+                    )
+                    Text(
+                        text = "Rate us",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        (1..5).forEach { star ->
+                            IconButton(
+                                onClick = { if (!sending) onRatingChange(star) },
+                                enabled = !sending
+                            ) {
+                                Icon(
+                                    imageVector = if (star <= rating) Icons.Filled.Star else Icons.Outlined.Star,
+                                    contentDescription = "Rate $star star${if (star == 1) "" else "s"}",
+                                    tint = if (star <= rating)
+                                        MaterialTheme.colorScheme.primary
+                                    else
+                                        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                                )
+                            }
+                        }
+                    }
+                    if (error != null) {
+                        Text(
+                            text = error,
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        TextButton(onClick = onDismiss) {
+                            Text("Cancel")
+                        }
+                        Button(
+                            onClick = onSubmit,
+                            enabled = !sending && message.isNotBlank() && rating in 1..5,
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                        ) {
+                            if (sending) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(20.dp),
+                                    strokeWidth = 2.dp,
+                                    color = MaterialTheme.colorScheme.onPrimary
+                                )
+                            } else {
+                                Text("Send")
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }

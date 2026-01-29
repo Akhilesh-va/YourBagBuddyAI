@@ -347,10 +347,12 @@ fun TripTypeSelector(
 fun GeneratedItemsList(
     items: List<com.example.yourbagbuddy.domain.model.ChecklistItem>,
     onItemChecked: (com.example.yourbagbuddy.domain.model.ChecklistItem, Boolean) -> Unit,
+    onSelectAll: ((Boolean) -> Unit)? = null,
     modifier: Modifier = Modifier,
     inlineActionLabel: String? = null,
     onInlineActionClick: (() -> Unit)? = null
 ) {
+    val allSelected = items.isNotEmpty() && items.all { it.isPacked }
     Card(
         modifier = modifier
             .fillMaxWidth(),
@@ -371,6 +373,28 @@ fun GeneratedItemsList(
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold
             )
+            if (onSelectAll != null && items.isNotEmpty()) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Checkbox(
+                        checked = allSelected,
+                        onCheckedChange = onSelectAll,
+                        colors = CheckboxDefaults.colors(
+                            checkedColor = MaterialTheme.colorScheme.primary,
+                            checkmarkColor = MaterialTheme.colorScheme.onPrimary
+                        )
+                    )
+                    Text(
+                        text = "Select all",
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(start = 8.dp)
+                    )
+                }
+            }
             items.forEach { item ->
                 Row(
                     modifier = Modifier

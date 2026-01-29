@@ -19,6 +19,7 @@ import com.example.yourbagbuddy.presentation.viewmodel.SmartPackViewModel
 @Composable
 fun AiListScreen(
     onNavigateBack: () -> Unit,
+    onNavigateToChecklist: () -> Unit,
     viewModel: SmartPackViewModel
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -89,6 +90,7 @@ fun AiListScreen(
                 GeneratedItemsList(
                     items = uiState.generatedItems,
                     onItemChecked = viewModel::onGeneratedItemChecked,
+                    onSelectAll = viewModel::selectAllGeneratedItems,
                     modifier = Modifier
                         .fillMaxWidth()
                         .heightIn(min = 260.dp),
@@ -96,7 +98,7 @@ fun AiListScreen(
                     onInlineActionClick = {
                         viewModel.addSelectedGeneratedItemsToChecklist()
                         viewModel.clearResults()
-                        onNavigateBack()
+                        onNavigateToChecklist()
                     }
                 )
 

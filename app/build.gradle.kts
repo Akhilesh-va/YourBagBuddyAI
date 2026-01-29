@@ -41,10 +41,14 @@ android {
                 "API_BASE_URL",
                 "https://your-back-buddy-backend.vercel.app/"
             )
+        // Google Apps Script web app URL that appends feedback to a sheet. Set FEEDBACK_SHEET_URL in local.properties.
+        val feedbackSheetUrl = gradleLocalProperties(rootDir, providers)
+            .getProperty("FEEDBACK_SHEET_URL", "https://script.google.com/")
         buildConfigField("String", "ZAI_API_KEY", "\"$zaiApiKey\"")
         buildConfigField("String", "OPENROUTER_API_KEY", "\"$openRouterApiKey\"")
         buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"$googleWebClientId\"")
         buildConfigField("String", "API_BASE_URL", "\"$apiBaseUrl\"")
+        buildConfigField("String", "FEEDBACK_SHEET_URL", "\"$feedbackSheetUrl\"")
     }
 
     buildTypes {

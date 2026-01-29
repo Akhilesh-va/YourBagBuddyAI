@@ -51,10 +51,13 @@ class ChecklistViewModel @Inject constructor(
         viewModelScope.launch {
             getAllTripsUseCase().collect { trips ->
                 val currentSelected = selectedTripId.value
-                val nextSelected = if (trips.any { it.id == currentSelected }) {
-                    currentSelected
-                } else {
-                    trips.firstOrNull()?.id
+                // If current selection is in the list, keep it. If not in list (e.g. newly created
+                // and list hasn't re-emitted yet), keep current selection so new checklist stays
+                // selected. Only fall back to first trip when we have no selection.
+                val nextSelected = when {
+                    trips.any { it.id == currentSelected } -> currentSelected
+                    currentSelected != null -> currentSelected
+                    else -> trips.firstOrNull()?.id
                 }
 
                 selectedTripId.value = nextSelected
@@ -183,6 +186,23 @@ class ChecklistViewModel @Inject constructor(
             createResult.fold(
                 onSuccess = { tripId ->
                     selectedTripId.value = tripId
+                    val newTrip = Trip(
+                        id = tripId,
+                        name = trimmedChecklistName,
+                        destination = trimmedChecklistName,
+                        startDate = now,
+                        endDate = now,
+                        numberOfPeople = 1,
+                        tripType = TripType.VACATION,
+                        createdDate = now,
+                        userId = userId
+                    )
+                    _uiState.value = _uiState.value.copy(
+                        trips = _uiState.value.trips + newTrip,
+                        hasTrip = true,
+                        checklistName = trimmedChecklistName,
+                        selectedTripId = tripId
+                    )
                     val addResult = addChecklistItemUseCase(tripId, trimmedItemName, category)
                     addResult.fold(
                         onSuccess = {
@@ -275,7 +295,25 @@ class ChecklistViewModel @Inject constructor(
             result.fold(
                 onSuccess = { tripId ->
                     selectedTripId.value = tripId
-                    _uiState.value = _uiState.value.copy(isLoading = false, error = null)
+                    val newTrip = Trip(
+                        id = tripId,
+                        name = trimmed,
+                        destination = trimmed,
+                        startDate = now,
+                        endDate = now,
+                        numberOfPeople = 1,
+                        tripType = TripType.VACATION,
+                        createdDate = now,
+                        userId = userId
+                    )
+                    _uiState.value = _uiState.value.copy(
+                        trips = _uiState.value.trips + newTrip,
+                        hasTrip = true,
+                        checklistName = trimmed,
+                        selectedTripId = tripId,
+                        isLoading = false,
+                        error = null
+                    )
                 },
                 onFailure = { error ->
                     _uiState.value = _uiState.value.copy(

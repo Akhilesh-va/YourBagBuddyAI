@@ -2,10 +2,12 @@ package com.example.yourbagbuddy.di
 
 import com.example.yourbagbuddy.BuildConfig
 import com.example.yourbagbuddy.data.remote.api.BackendApiService
+import com.example.yourbagbuddy.data.remote.api.FeedbackApiService
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
+import javax.inject.Named
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
@@ -49,6 +51,28 @@ object AiModule {
         return builder.build()
     }
 
+    /**
+     * OkHttp client for feedback (Google Apps Script) that does not follow redirects.
+     * Following redirects can turn POST into GET and cause HTTP 405 from the script.
+     */
+    @Provides
+    @Singleton
+    @Named("FeedbackOkHttp")
+    fun provideFeedbackOkHttpClient(): OkHttpClient {
+        val builder = OkHttpClient.Builder()
+            .connectTimeout(CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            .readTimeout(READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            .writeTimeout(WRITE_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            .followRedirects(false)
+        if (BuildConfig.DEBUG) {
+            val logging = HttpLoggingInterceptor().apply {
+                level = HttpLoggingInterceptor.Level.BODY
+            }
+            builder.addInterceptor(logging)
+        }
+        return builder.build()
+    }
+
     @Provides
     @Singleton
     fun provideRetrofit(
@@ -70,5 +94,33 @@ object AiModule {
     ): BackendApiService {
         return retrofit.create(BackendApiService::class.java)
     }
+
+    @Provides
+    @Singleton
+    @Named("FeedbackRetrofit")
+    fun provideFeedbackRetrofit(
+        @Named("FeedbackOkHttp") okHttpClient: OkHttpClient
+    ): Retrofit {
+        val feedbackUrl: String = BuildConfig.FEEDBACK_SHEET_URL
+        val baseUrl = if (feedbackUrl.endsWith("/")) feedbackUrl else "$feedbackUrl/"
+        return Retrofit.Builder()
+            .baseUrl(baseUrl)
+            .client(okHttpClient)
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+    }
+
+    @Provides
+    @Singleton
+    fun provideFeedbackApiService(
+        @Named("FeedbackRetrofit") retrofit: Retrofit
+    ): FeedbackApiService {
+        return retrofit.create(FeedbackApiService::class.java)
+    }
+
+    @Provides
+    @Singleton
+    @Named("FeedbackSheetUrl")
+    fun provideFeedbackSheetUrl(): String = BuildConfig.FEEDBACK_SHEET_URL
 }
 
