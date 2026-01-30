@@ -30,6 +30,16 @@ interface BackendApiService {
     suspend fun getTravelTip(
         @Header("Authorization") authHeader: String
     ): TravelTipResponse
+
+    /**
+     * Send a chat message to the same AI used for packing lists.
+     * Backend maintains conversation context and returns the AI reply.
+     */
+    @POST("api/ai/chat")
+    suspend fun sendChatMessage(
+        @Header("Authorization") authHeader: String,
+        @Body request: ChatRequest
+    ): ChatResponse
 }
 
 // --- Request DTOs ---
@@ -58,5 +68,22 @@ data class PackingItemDto(
 
 data class TravelTipResponse(
     val tip: String?,
+    val error: String? = null
+)
+
+// --- Chat (same AI as packing list) ---
+
+data class ChatRequest(
+    val message: String,
+    val history: List<ChatMessageDto> = emptyList()
+)
+
+data class ChatMessageDto(
+    val role: String, // "user" or "assistant"
+    val content: String
+)
+
+data class ChatResponse(
+    val reply: String?,
     val error: String? = null
 )

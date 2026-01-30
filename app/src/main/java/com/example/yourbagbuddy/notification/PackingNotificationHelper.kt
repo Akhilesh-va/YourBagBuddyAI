@@ -5,6 +5,8 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
@@ -72,8 +74,9 @@ object PackingNotificationHelper {
             openIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
+        val largeIcon = decodeLogoAsLargeIcon(context)
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setSmallIcon(R.drawable.ic_notification_small)
             .setContentTitle(context.getString(R.string.notification_packing_reminder_title))
             .setContentText(body)
             .setStyle(NotificationCompat.BigTextStyle().bigText(body))
@@ -81,6 +84,7 @@ object PackingNotificationHelper {
             .setAutoCancel(true)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setVibrate(VIBRATION_PATTERN)
+            .apply { largeIcon?.let { setLargeIcon(it) } }
             .build()
         try {
             NotificationManagerCompat.from(context).notify(notificationIdFor(checklistId), notification)
@@ -96,4 +100,24 @@ object PackingNotificationHelper {
 
     private fun notificationIdFor(checklistId: String): Int =
         NOTIFICATION_ID_PREFIX + (checklistId.hashCode() and 0x7FFF)
+
+    /** Decode app logo as a bitmap suitable for notification large icon (e.g. 64dp). */
+    private fun decodeLogoAsLargeIcon(context: Context): Bitmap? {
+        val sizePx = (64 * context.resources.displayMetrics.density).toInt()
+        return runCatching {
+            BitmapFactory.Options().run {
+                inJustDecodeBounds = true
+                BitmapFactory.decodeResource(context.resources, R.drawable.your_bag_buddy_logo, this)
+                inSampleSize = maxOf(1, outWidth / sizePx, outHeight / sizePx)
+                inJustDecodeBounds = false
+                BitmapFactory.decodeResource(context.resources, R.drawable.your_bag_buddy_logo, this)
+            }?.let { bitmap ->
+                if (bitmap.width != sizePx || bitmap.height != sizePx) {
+                    Bitmap.createScaledBitmap(bitmap, sizePx, sizePx, true).apply {
+                        if (this != bitmap) bitmap.recycle()
+                    }
+                } else bitmap
+            }
+        }.getOrNull()
+    }
 }

@@ -1,12 +1,14 @@
 package com.example.yourbagbuddy.di
 
 import com.example.yourbagbuddy.data.repository.AuthRepositoryImpl
+import com.example.yourbagbuddy.data.repository.ChatRepositoryImpl
 import com.example.yourbagbuddy.data.repository.ChecklistRepositoryImpl
 import com.example.yourbagbuddy.data.repository.MedicineRepositoryImpl
 import com.example.yourbagbuddy.data.repository.ReminderRepositoryImpl
 import com.example.yourbagbuddy.data.repository.SmartPackRepositoryImpl
 import com.example.yourbagbuddy.data.repository.TripRepositoryImpl
 import com.example.yourbagbuddy.domain.repository.AuthRepository
+import com.example.yourbagbuddy.domain.repository.ChatRepository
 import com.example.yourbagbuddy.domain.repository.ChecklistRepository
 import com.example.yourbagbuddy.domain.repository.MedicineRepository
 import com.example.yourbagbuddy.domain.repository.ReminderRepository
@@ -45,6 +47,12 @@ abstract class RepositoryModule {
     abstract fun bindSmartPackRepository(
         smartPackRepositoryImpl: SmartPackRepositoryImpl
     ): SmartPackRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindChatRepository(
+        chatRepositoryImpl: ChatRepositoryImpl
+    ): ChatRepository
     
     @Binds
     @Singleton

@@ -90,7 +90,8 @@ match /users/{userId}/{document=**} {
 
 - `POST /api/ai/packing-list` — body: SmartPackRequest-like JSON; auth required; rate limited.
 - `GET /api/ai/travel-tip` — auth required; rate limited.
-- Response: same shape your app already expects (e.g. list of checklist items, or a tip string).
+- `POST /api/ai/chat` — body: `{ "message": string, "history": [{ "role": "user"|"assistant", "content": string }] }`; returns `{ "reply": string, "error": string? }`. Same AI as packing list; auth required; rate limited.
+- Response: same shape your app already expects (e.g. list of checklist items, a tip string, or chat reply).
 
 ---
 

@@ -6,8 +6,6 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -24,6 +22,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.yourbagbuddy.domain.model.TripType
+import com.example.yourbagbuddy.presentation.components.AuthRequiredDialog
 import com.example.yourbagbuddy.presentation.ui.theme.Primary
 import com.example.yourbagbuddy.presentation.viewmodel.AuthStatusViewModel
 import com.example.yourbagbuddy.presentation.viewmodel.SmartPackViewModel
@@ -33,6 +32,7 @@ import java.util.Locale
 @Composable
 fun SmartPackScreen(
     onNavigateToAiList: () -> Unit = {},
+    onNavigateToChat: () -> Unit = {},
     onNavigateToLogin: () -> Unit = {},
     onNavigateToSignUp: () -> Unit = {},
     onNavigateBack: () -> Unit,
@@ -79,6 +79,18 @@ fun SmartPackScreen(
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+
+            TextButton(
+                onClick = {
+                    if (isLoggedIn) onNavigateToChat() else showAuthDialog = true
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    "Or chat with the packing assistant (same AI)",
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
 
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -225,87 +237,15 @@ fun SmartPackScreen(
         }
 
         if (showAuthDialog) {
-            AlertDialog(
-                onDismissRequest = { showAuthDialog = false },
-                containerColor = MaterialTheme.colorScheme.surface,
-                shape = RoundedCornerShape(24.dp),
-                title = {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Card(
-                            shape = RoundedCornerShape(16.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = Primary.copy(alpha = 0.1f)
-                            ),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.AutoAwesome,
-                                contentDescription = null,
-                                tint = Primary,
-                                modifier = Modifier.padding(10.dp)
-                            )
-                        }
-                        Column {
-                            Text(
-                                text = "Unlock AI packing",
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = "Create a free account to let our AI plan a smarter packing list for you.",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
+            AuthRequiredDialog(
+                onDismiss = { showAuthDialog = false },
+                onSignUp = {
+                    showAuthDialog = false
+                    onNavigateToSignUp()
                 },
-                text = {
-                    Column(
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Text(
-                            text = "No spam, just smarter trips ✨",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                },
-                confirmButton = {
-                    Button(
-                        onClick = {
-                            showAuthDialog = false
-                            onNavigateToSignUp()
-                        },
-                        shape = RoundedCornerShape(16.dp)
-                    ) {
-                        Text(
-                            text = "Sign up free",
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-                },
-                dismissButton = {
-                    Button(
-                        onClick = {
-                            showAuthDialog = false
-                            onNavigateToLogin()
-                        },
-                        shape = RoundedCornerShape(16.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    ) {
-                        Text(
-                            text = "I already have an account",
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
+                onLogin = {
+                    showAuthDialog = false
+                    onNavigateToLogin()
                 }
             )
         }

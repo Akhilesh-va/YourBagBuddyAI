@@ -10,6 +10,7 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
+import com.example.yourbagbuddy.presentation.screen.ChatScreen
 import com.example.yourbagbuddy.presentation.screen.ChecklistScreen
 import com.example.yourbagbuddy.presentation.screen.HomeScreen
 import com.example.yourbagbuddy.presentation.screen.LoginScreen
@@ -36,6 +37,7 @@ sealed class Screen(val route: String) {
     object SmartPack : Screen("smart_pack") // Keep for internal navigation
     object Settings : Screen("settings") // Keep for internal navigation
     object AiList : Screen("ai_list") // AI-generated packing list screen
+    object Chat : Screen("chat") // Packing assistant chatbot (same AI as list)
     object TripDetail : Screen("trip_detail/{tripId}") {
         fun createRoute(tripId: String) = "trip_detail/$tripId"
     }
@@ -139,6 +141,7 @@ fun NavGraph(
         composable(Screen.BestChoices.route) {
             SmartPackScreen(
                 onNavigateToAiList = { navController.navigate(Screen.AiList.route) },
+                onNavigateToChat = { navController.navigate(Screen.Chat.route) },
                 onNavigateToLogin = {
                     navController.navigate(loginRoute(Screen.BestChoices.route))
                 },
@@ -169,6 +172,7 @@ fun NavGraph(
         composable(Screen.SmartPack.route) {
             SmartPackScreen(
                 onNavigateToAiList = { navController.navigate(Screen.AiList.route) },
+                onNavigateToChat = { navController.navigate(Screen.Chat.route) },
                 onNavigateToLogin = {
                     navController.navigate(loginRoute(Screen.BestChoices.route))
                 },
@@ -209,6 +213,17 @@ fun NavGraph(
                     }
                 },
                 viewModel = smartPackViewModel
+            )
+        }
+        composable(Screen.Chat.route) {
+            ChatScreen(
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateToLogin = {
+                    navController.navigate(loginRoute(Screen.Chat.route))
+                },
+                onNavigateToSignUp = {
+                    navController.navigate(signupRoute(Screen.Chat.route))
+                }
             )
         }
     }

@@ -106,102 +106,148 @@ fun ChecklistScreen(
                     .fillMaxSize()
                     .padding(padding),
                 contentPadding = PaddingValues(bottom = 120.dp),
-                verticalArrangement = Arrangement.spacedBy(0.dp)
+                verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                item {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 16.dp),
-                    shape = RoundedCornerShape(20.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surface
-                    ),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 12.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        TextField(
-                            value = newItemText,
-                            onValueChange = { newItemText = it },
-                            placeholder = { Text("List item") },
-                            modifier = Modifier.weight(1f),
-                            singleLine = true,
-                            colors = TextFieldDefaults.colors(
-                                focusedContainerColor = MaterialTheme.colorScheme.surface,
-                                unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                                disabledContainerColor = MaterialTheme.colorScheme.surface,
-                                focusedIndicatorColor = MaterialTheme.colorScheme.surface,
-                                unfocusedIndicatorColor = MaterialTheme.colorScheme.surface
-                            )
-                        )
-                        IconButton(
-                            onClick = addItemAndClear,
-                            enabled = newItemText.isNotBlank()
-                        ) {
-                            Icon(
-                                Icons.Default.Add,
-                                contentDescription = "Add item",
-                                tint = if (newItemText.isNotBlank())
-                                    MaterialTheme.colorScheme.primary
-                                else
-                                    MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                }
-                }
-
+                // Single hero block: checklist picker + add item in one flowing section
                 item {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 20.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                        .padding(horizontal = 20.dp, vertical = 16.dp)
                 ) {
-                    Text(
-                        text = "Checklists",
-                        style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        contentPadding = PaddingValues(end = 4.dp)
+                    Surface(
+                        shape = RoundedCornerShape(20.dp),
+                        color = MaterialTheme.colorScheme.surface,
+                        shadowElevation = 2.dp,
+                        tonalElevation = 0.dp
                     ) {
-                        items(uiState.trips, key = { it.id }) { trip ->
-                            FilterChip(
-                                selected = uiState.selectedTripId == trip.id,
-                                onClick = { viewModel.selectTrip(trip.id) },
-                                label = { Text(trip.name) },
-                                shape = RoundedCornerShape(14.dp),
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = MaterialTheme.colorScheme.primary,
-                                    selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
-                                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(20.dp),
+                            verticalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text(
+                                    text = "Checklists",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurface
                                 )
+                                Text(
+                                    text = if (uiState.selectedTripId != null)
+                                        "Add items to this list below"
+                                    else
+                                        "Select a trip or create a new one",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            LazyRow(
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                contentPadding = PaddingValues(end = 4.dp)
+                            ) {
+                                items(uiState.trips, key = { it.id }) { trip ->
+                                    FilterChip(
+                                        selected = uiState.selectedTripId == trip.id,
+                                        onClick = { viewModel.selectTrip(trip.id) },
+                                        label = { Text(trip.name) },
+                                        shape = RoundedCornerShape(14.dp),
+                                        colors = FilterChipDefaults.filterChipColors(
+                                            selectedContainerColor = MaterialTheme.colorScheme.primary,
+                                            selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
+                                            containerColor = MaterialTheme.colorScheme.surfaceVariant
+                                        )
+                                    )
+                                }
+                                item {
+                                    AssistChip(
+                                        onClick = {
+                                            pendingItemName = ""
+                                            checklistNameText = ""
+                                            showChecklistNameDialog = true
+                                        },
+                                        label = { Text("New") },
+                                        leadingIcon = {
+                                            Icon(
+                                                Icons.Default.Add,
+                                                contentDescription = null
+                                            )
+                                        },
+                                        shape = RoundedCornerShape(14.dp)
+                                    )
+                                }
+                            }
+                            if (uiState.hasTrip) {
+                                Surface(
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f)
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(12.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = uiState.checklistName.ifBlank { "Checklist" },
+                                            style = MaterialTheme.typography.titleSmall,
+                                            fontWeight = FontWeight.Medium,
+                                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                                        )
+                                        Text(
+                                            text = "${uiState.completedCount}/${uiState.totalCount} Completed",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.9f)
+                                        )
+                                    }
+                                }
+                            }
+                            HorizontalDivider(
+                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+                                thickness = 1.dp
                             )
-                        }
-                        item {
-                            AssistChip(
-                                onClick = {
-                                    // Show name dialog so user names the checklist; don't create blank ones.
-                                    pendingItemName = ""
-                                    checklistNameText = ""
-                                    showChecklistNameDialog = true
-                                },
-                                label = { Text("New") },
-                                leadingIcon = {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                TextField(
+                                    value = newItemText,
+                                    onValueChange = { newItemText = it },
+                                    placeholder = {
+                                        Text(
+                                            if (uiState.selectedTripId != null)
+                                                "Add to ${uiState.checklistName.ifBlank { "list" }}"
+                                            else
+                                                "Select a checklist above first"
+                                        )
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                    singleLine = true,
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = TextFieldDefaults.colors(
+                                        focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                                        disabledContainerColor = MaterialTheme.colorScheme.surface,
+                                        focusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
+                                        unfocusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent
+                                    )
+                                )
+                                IconButton(
+                                    onClick = addItemAndClear,
+                                    enabled = newItemText.isNotBlank()
+                                ) {
                                     Icon(
                                         Icons.Default.Add,
-                                        contentDescription = null
+                                        contentDescription = "Add item",
+                                        tint = if (newItemText.isNotBlank())
+                                            MaterialTheme.colorScheme.primary
+                                        else
+                                            MaterialTheme.colorScheme.onSurfaceVariant
                                     )
-                                },
-                                shape = RoundedCornerShape(14.dp)
-                            )
+                                }
+                            }
                         }
                     }
                 }
@@ -225,39 +271,6 @@ fun ChecklistScreen(
                             color = MaterialTheme.colorScheme.onErrorContainer,
                             style = MaterialTheme.typography.bodyMedium
                         )
-                    }
-                    }
-                }
-
-                if (uiState.hasTrip) {
-                    item {
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 20.dp, vertical = 16.dp),
-                        shape = RoundedCornerShape(20.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.primaryContainer
-                        ),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = uiState.checklistName.ifBlank { "Checklist" },
-                                style = MaterialTheme.typography.titleMedium
-                            )
-                            Text(
-                                text = "${uiState.completedCount}/${uiState.totalCount} Completed",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer
-                            )
-                        }
                     }
                     }
                 }
@@ -504,22 +517,18 @@ fun ChecklistItemRow(
     onToggle: (Boolean) -> Unit,
     onDelete: () -> Unit
 ) {
-    Card(
+    Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        color = MaterialTheme.colorScheme.surface,
+        shape = RoundedCornerShape(12.dp)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(horizontal = 12.dp, vertical = 4.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Checkbox
             Checkbox(
                 checked = item.isPacked,
                 onCheckedChange = onToggle,
@@ -528,13 +537,11 @@ fun ChecklistItemRow(
                     checkmarkColor = MaterialTheme.colorScheme.onPrimary
                 )
             )
-
-            // Item Text
             Text(
                 text = item.name,
                 modifier = Modifier
                     .weight(1f)
-                    .padding(horizontal = 12.dp),
+                    .padding(horizontal = 8.dp),
                 style = MaterialTheme.typography.bodyLarge,
                 textDecoration = if (item.isPacked) TextDecoration.LineThrough else null,
                 color = if (item.isPacked)
@@ -542,8 +549,6 @@ fun ChecklistItemRow(
                 else
                     MaterialTheme.colorScheme.onSurface
             )
-
-            // Delete Button
             IconButton(
                 onClick = onDelete,
                 modifier = Modifier.size(40.dp)
@@ -597,18 +602,15 @@ fun ReminderCard(
     onStopConditionsChange: (Boolean, Boolean) -> Unit
 ) {
     var expanded by remember { mutableStateOf(true) }
-    Card(
+    Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 10.dp),
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+            .padding(horizontal = 20.dp, vertical = 8.dp),
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
         border = BorderStroke(
             1.dp,
-            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
         )
     ) {
         Column(
