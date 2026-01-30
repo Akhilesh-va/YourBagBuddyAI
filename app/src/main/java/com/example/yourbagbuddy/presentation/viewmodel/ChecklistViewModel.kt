@@ -4,18 +4,21 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.yourbagbuddy.domain.model.ChecklistItem
 import com.example.yourbagbuddy.domain.model.ItemCategory
+import com.example.yourbagbuddy.domain.model.RepeatType
 import com.example.yourbagbuddy.domain.model.Trip
 import com.example.yourbagbuddy.domain.model.TripType
 import com.example.yourbagbuddy.domain.repository.AuthRepository
-import com.example.yourbagbuddy.domain.repository.ChecklistRepository
 import com.example.yourbagbuddy.domain.usecase.checklist.AddChecklistItemUseCase
 import com.example.yourbagbuddy.domain.usecase.checklist.DeleteChecklistItemUseCase
 import com.example.yourbagbuddy.domain.usecase.checklist.GetChecklistItemsUseCase
 import com.example.yourbagbuddy.domain.usecase.checklist.ToggleItemPackedUseCase
+import com.example.yourbagbuddy.domain.usecase.reminder.GetReminderForChecklistUseCase
+import com.example.yourbagbuddy.domain.usecase.reminder.ScheduleReminderUseCase
 import com.example.yourbagbuddy.domain.usecase.trip.CreateTripUseCase
 import com.example.yourbagbuddy.domain.usecase.trip.DeleteTripUseCase
 import com.example.yourbagbuddy.domain.usecase.trip.GetAllTripsUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -26,6 +29,7 @@ import kotlinx.coroutines.launch
 import java.util.Date
 import javax.inject.Inject
 
+@OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class ChecklistViewModel @Inject constructor(
     private val getAllTripsUseCase: GetAllTripsUseCase,
@@ -35,6 +39,8 @@ class ChecklistViewModel @Inject constructor(
     private val deleteChecklistItemUseCase: DeleteChecklistItemUseCase,
     private val createTripUseCase: CreateTripUseCase,
     private val deleteTripUseCase: DeleteTripUseCase,
+    private val getReminderForChecklistUseCase: GetReminderForChecklistUseCase,
+    private val scheduleReminderUseCase: ScheduleReminderUseCase,
     private val authRepository: AuthRepository
 ) : ViewModel() {
     
@@ -86,6 +92,45 @@ class ChecklistViewModel @Inject constructor(
                 updateUiState(items)
             }
         }
+
+        // Load reminder for selected checklist when selection changes
+        viewModelScope.launch {
+            selectedTripId.collect { tripId ->
+                if (tripId != null) {
+                    _uiState.value = _uiState.value.copy(reminderLoading = true)
+                    val reminder = getReminderForChecklistUseCase(tripId)
+                    _uiState.value = _uiState.value.copy(
+                        reminderEnabled = reminder?.isEnabled == true,
+                        reminderTimeMillis = reminder?.reminderTime?.time ?: defaultReminderTimeMillis(),
+                        repeatType = reminder?.repeatType ?: RepeatType.ONCE,
+                        repeatIntervalDays = reminder?.repeatIntervalDays ?: 1,
+                        stopWhenCompleted = reminder?.stopWhenCompleted ?: true,
+                        stopAtTripStart = reminder?.stopAtTripStart ?: true,
+                        reminderLoading = false
+                    )
+                } else {
+                    _uiState.value = _uiState.value.copy(
+                        reminderEnabled = false,
+                        reminderTimeMillis = defaultReminderTimeMillis(),
+                        repeatType = RepeatType.ONCE,
+                        repeatIntervalDays = 1,
+                        stopWhenCompleted = true,
+                        stopAtTripStart = true,
+                        reminderLoading = false
+                    )
+                }
+            }
+        }
+    }
+
+    private fun defaultReminderTimeMillis(): Long {
+        val cal = java.util.Calendar.getInstance()
+        cal.add(java.util.Calendar.DAY_OF_YEAR, 1)
+        cal.set(java.util.Calendar.HOUR_OF_DAY, 20)
+        cal.set(java.util.Calendar.MINUTE, 0)
+        cal.set(java.util.Calendar.SECOND, 0)
+        cal.set(java.util.Calendar.MILLISECOND, 0)
+        return cal.timeInMillis
     }
     
     private fun updateUiState(items: List<ChecklistItem>) {
@@ -328,6 +373,61 @@ class ChecklistViewModel @Inject constructor(
     fun clearError() {
         _uiState.value = _uiState.value.copy(error = null)
     }
+
+    // Reminder: UI requests notification permission before calling saveReminder with isEnabled = true
+    fun saveReminder(
+        reminderTimeMillis: Long,
+        repeatType: RepeatType,
+        repeatIntervalDays: Int,
+        isEnabled: Boolean,
+        stopWhenCompleted: Boolean,
+        stopAtTripStart: Boolean
+    ) {
+        val checklistId = selectedTripId.value ?: return
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(reminderLoading = true, error = null)
+            val result = scheduleReminderUseCase(
+                checklistId = checklistId,
+                reminderTime = Date(reminderTimeMillis),
+                repeatType = repeatType,
+                repeatIntervalDays = if (repeatType == RepeatType.EVERY_X_DAYS) repeatIntervalDays else null,
+                isEnabled = isEnabled,
+                stopWhenCompleted = stopWhenCompleted,
+                stopAtTripStart = stopAtTripStart
+            )
+            _uiState.value = _uiState.value.copy(
+                reminderLoading = false,
+                reminderEnabled = isEnabled,
+                reminderTimeMillis = reminderTimeMillis,
+                repeatType = repeatType,
+                repeatIntervalDays = repeatIntervalDays,
+                stopWhenCompleted = stopWhenCompleted,
+                stopAtTripStart = stopAtTripStart,
+                error = result.fold(
+                    onSuccess = { null },
+                    onFailure = { it.message ?: "Failed to save reminder" }
+                )
+            )
+        }
+    }
+
+    fun updateReminderTime(reminderTimeMillis: Long) {
+        _uiState.value = _uiState.value.copy(reminderTimeMillis = reminderTimeMillis)
+    }
+
+    fun updateReminderRepeatType(repeatType: RepeatType, intervalDays: Int) {
+        _uiState.value = _uiState.value.copy(
+            repeatType = repeatType,
+            repeatIntervalDays = intervalDays.coerceAtLeast(1)
+        )
+    }
+
+    fun updateReminderStopConditions(stopWhenCompleted: Boolean, stopAtTripStart: Boolean) {
+        _uiState.value = _uiState.value.copy(
+            stopWhenCompleted = stopWhenCompleted,
+            stopAtTripStart = stopAtTripStart
+        )
+    }
 }
 
 data class ChecklistUiState(
@@ -339,5 +439,13 @@ data class ChecklistUiState(
     val checklistName: String = "",
     val trips: List<Trip> = emptyList(),
     val selectedTripId: String? = null,
-    val error: String? = null
+    val error: String? = null,
+    // Reminder settings (for selected checklist)
+    val reminderEnabled: Boolean = false,
+    val reminderTimeMillis: Long = 0L,
+    val repeatType: RepeatType = RepeatType.ONCE,
+    val repeatIntervalDays: Int = 1,
+    val stopWhenCompleted: Boolean = true,
+    val stopAtTripStart: Boolean = true,
+    val reminderLoading: Boolean = false
 )

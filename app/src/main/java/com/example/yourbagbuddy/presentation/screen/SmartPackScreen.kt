@@ -312,6 +312,7 @@ fun SmartPackScreen(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun TripTypeSelector(
     selectedType: TripType,

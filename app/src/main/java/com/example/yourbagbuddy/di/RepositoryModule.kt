@@ -3,11 +3,13 @@ package com.example.yourbagbuddy.di
 import com.example.yourbagbuddy.data.repository.AuthRepositoryImpl
 import com.example.yourbagbuddy.data.repository.ChecklistRepositoryImpl
 import com.example.yourbagbuddy.data.repository.MedicineRepositoryImpl
+import com.example.yourbagbuddy.data.repository.ReminderRepositoryImpl
 import com.example.yourbagbuddy.data.repository.SmartPackRepositoryImpl
 import com.example.yourbagbuddy.data.repository.TripRepositoryImpl
 import com.example.yourbagbuddy.domain.repository.AuthRepository
 import com.example.yourbagbuddy.domain.repository.ChecklistRepository
 import com.example.yourbagbuddy.domain.repository.MedicineRepository
+import com.example.yourbagbuddy.domain.repository.ReminderRepository
 import com.example.yourbagbuddy.domain.repository.SmartPackRepository
 import com.example.yourbagbuddy.domain.repository.TripRepository
 import dagger.Binds
@@ -49,4 +51,10 @@ abstract class RepositoryModule {
     abstract fun bindMedicineRepository(
         medicineRepositoryImpl: MedicineRepositoryImpl
     ): MedicineRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindReminderRepository(
+        reminderRepositoryImpl: ReminderRepositoryImpl
+    ): ReminderRepository
 }

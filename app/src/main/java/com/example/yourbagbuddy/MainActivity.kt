@@ -16,6 +16,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -35,6 +36,11 @@ class MainActivity : ComponentActivity() {
 
     @Inject
     lateinit var authRepository: AuthRepository
+
+    companion object {
+        /** Intent extra set by packing reminder notification; open app to this trip’s checklist. */
+        const val EXTRA_OPEN_TRIP_ID = "com.example.yourbagbuddy.OPEN_TRIP_ID"
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -74,6 +80,7 @@ class MainActivity : ComponentActivity() {
                             onNavigateNext = { showSplash = false }
                         )
                     } else {
+                        var openTripIdFromNotification by remember { mutableStateOf(intent?.getStringExtra(EXTRA_OPEN_TRIP_ID)) }
                         Scaffold(
                             modifier = Modifier.fillMaxSize(),
                             bottomBar = {
@@ -87,6 +94,8 @@ class MainActivity : ComponentActivity() {
                                 navController = navController,
                                 isDarkTheme = isDarkTheme,
                                 onDarkThemeChange = { isDarkTheme = it },
+                                initialTripIdToOpen = openTripIdFromNotification,
+                                onClearInitialTripIdToOpen = { openTripIdFromNotification = null },
                                 modifier = Modifier
                                     .fillMaxSize()
                                     .padding(bottom = innerPadding.calculateBottomPadding())

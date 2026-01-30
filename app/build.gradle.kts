@@ -127,6 +127,11 @@ dependencies {
     // Lottie animations for Compose
     implementation("com.airbnb.android:lottie-compose:6.4.0")
 
+    // WorkManager for reminder notifications (offline-first, survives app kill & reboot)
+    implementation("androidx.work:work-runtime-ktx:2.9.0")
+    implementation("androidx.hilt:hilt-work:1.2.0")
+    ksp("androidx.hilt:hilt-compiler:1.2.0")
+
     // Testing
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

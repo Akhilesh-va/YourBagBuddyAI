@@ -85,11 +85,11 @@ fun SplashScreen(
             )
 
             Text(
-                text = "You Bag Buddy",
+                text = "Your Bag Buddy",
                 style = MaterialTheme.typography.headlineMedium.copy(
                     fontFamily = logoFontFamily,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 40.sp,
+                    fontSize = 35.sp,
                     color = Color(0xFF006837),
 
                 ),

@@ -1,6 +1,7 @@
 package com.example.yourbagbuddy.presentation.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -45,8 +46,20 @@ fun NavGraph(
     navController: NavHostController,
     modifier: Modifier = Modifier,
     isDarkTheme: Boolean,
-    onDarkThemeChange: (Boolean) -> Unit
+    onDarkThemeChange: (Boolean) -> Unit,
+    initialTripIdToOpen: String? = null,
+    onClearInitialTripIdToOpen: () -> Unit = {}
 ) {
+    // When opened from packing reminder notification, navigate to that trip’s checklist.
+    LaunchedEffect(initialTripIdToOpen) {
+        if (initialTripIdToOpen != null) {
+            navController.navigate(Screen.TripDetail.createRoute(initialTripIdToOpen)) {
+                launchSingleTop = true
+                popUpTo(Screen.Home.route) { inclusive = false }
+            }
+            onClearInitialTripIdToOpen()
+        }
+    }
     NavHost(
         navController = navController,
         // Users land on Home after splash, regardless of auth state.
@@ -182,8 +195,8 @@ fun NavGraph(
             )
         }
 
-        composable(Screen.AiList.route) {
-            val parentEntry = remember(navController) {
+        composable(Screen.AiList.route) { backStackEntry ->
+            val parentEntry = remember(backStackEntry) {
                 navController.getBackStackEntry(Screen.BestChoices.route)
             }
             val smartPackViewModel: SmartPackViewModel = hiltViewModel(parentEntry)

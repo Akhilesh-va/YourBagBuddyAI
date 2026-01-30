@@ -21,7 +21,13 @@ import androidx.compose.material.icons.outlined.Star
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.example.yourbagbuddy.R
 import com.example.yourbagbuddy.presentation.viewmodel.SettingsViewModel
+import com.airbnb.lottie.compose.LottieAnimation
+import com.airbnb.lottie.compose.LottieCompositionSpec
+import com.airbnb.lottie.compose.LottieConstants
+import com.airbnb.lottie.compose.animateLottieCompositionAsState
+import com.airbnb.lottie.compose.rememberLottieComposition
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -400,6 +406,26 @@ private fun FeedbackDialog(
                     .padding(24.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
+                // Hero Lottie: welcoming hand animation—form state loops; success plays once
+                val composition by rememberLottieComposition(
+                    LottieCompositionSpec.RawRes(R.raw.feedback_traveller)
+                )
+                val lottieProgress by animateLottieCompositionAsState(
+                    composition,
+                    iterations = if (success == true) 1 else LottieConstants.IterateForever
+                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(100.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    LottieAnimation(
+                        composition = composition,
+                        progress = { lottieProgress },
+                        modifier = Modifier.fillMaxWidth(0.6f)
+                    )
+                }
                 Text(
                     text = if (success == true) "Thank you!" else "Give Feedback",
                     style = MaterialTheme.typography.titleLarge,

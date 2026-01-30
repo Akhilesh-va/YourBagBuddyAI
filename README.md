@@ -80,6 +80,28 @@ app/
   - Dehydration
 - Clear disclaimers (no medical advice)
 
+### 5. Packing Reminders
+- **Enable/disable** reminders per checklist (trip)
+- **Reminder time**: date & time picker (e.g. Jan 20 at 8:00 PM)
+- **Frequency**: Once, Daily, or Every X days
+- **Stop conditions**: reminders stop automatically when:
+  - All checklist items are checked
+  - Trip start date is reached
+  - User disables reminders
+- **Trigger**: notification is sent **only if there are unchecked items**
+- Notifications survive app kill and device reboot (WorkManager)
+- Notification permission (Android 13+) is requested only when the user turns reminders on
+
+#### Reminder flow (architecture)
+1. **UI** (ChecklistScreen): user toggles reminder, sets time/frequency/stop conditions. Requests `POST_NOTIFICATIONS` when enabling. Calls ViewModel only (no WorkManager).
+2. **ViewModel** (ChecklistViewModel): calls `ScheduleReminderUseCase` / `GetReminderForChecklistUseCase`. Never touches WorkManager.
+3. **Use cases** (ScheduleReminderUseCase, CancelReminderUseCase, GetReminderForChecklistUseCase): call `ReminderRepository`.
+4. **Repository** (ReminderRepositoryImpl): persists reminder in Room, enqueues **UniqueWork** per checklist with `OneTimeWorkRequest` at reminder time. Uses `ExistingWorkPolicy.REPLACE` so updating reminder replaces pending work.
+5. **Worker** (PackingReminderWorker): at run time loads reminder, trip, and checklist items from Room; checks stop conditions (trip start, all checked, disabled); if unchecked items exist, shows notification via `PackingNotificationHelper`; for DAILY/EVERY_X_DAYS, reschedules next run.
+6. **Cancel**: when a trip/checklist is deleted, `DeleteTripUseCase` calls `CancelReminderUseCase` so WorkManager work is cancelled and reminders stop.
+
+Design is **future-ready**: reminder data and repository interface can later be synced to a backend or replaced by push notifications without changing UI or domain.
+
 ## 🔐 Authentication
 
 - **Guest Mode**: Works offline, data stored locally
@@ -92,7 +114,7 @@ app/
 ### Local (Room Database)
 - Primary source of truth
 - Works completely offline
-- Tables: `trips`, `checklist_items`
+- Tables: `trips`, `checklist_items`, `reminders`
 
 ### Cloud (Firebase Firestore)
 - Syncs when user is logged in
@@ -185,7 +207,7 @@ object NetworkModule {
 
 ### Room Database
 - Database name: `yourbagbuddy_database`
-- Version: 1
+- Version: 3 (includes `reminders` table)
 - Auto-migration: Not configured (manual migrations required)
 
 ## 📝 Code Quality

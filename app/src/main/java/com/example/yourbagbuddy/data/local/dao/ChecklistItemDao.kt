@@ -31,4 +31,10 @@ interface ChecklistItemDao {
     
     @Query("UPDATE checklist_items SET isPacked = :isPacked WHERE id = :itemId")
     suspend fun updatePackedStatus(itemId: String, isPacked: Boolean)
+
+    /**
+     * Used by Reminder Worker: get names of unchecked items for notification body.
+     */
+    @Query("SELECT name FROM checklist_items WHERE tripId = :tripId AND isPacked = 0 ORDER BY category, name")
+    suspend fun getUncheckedItemNames(tripId: String): List<String>
 }

@@ -16,6 +16,9 @@ interface TripDao {
     
     @Query("SELECT * FROM trips WHERE id = :tripId")
     fun getTripById(tripId: String): Flow<TripEntity?>
+
+    @Query("SELECT * FROM trips WHERE id = :tripId LIMIT 1")
+    suspend fun getTripByIdOnce(tripId: String): TripEntity?
     
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertTrip(trip: TripEntity)

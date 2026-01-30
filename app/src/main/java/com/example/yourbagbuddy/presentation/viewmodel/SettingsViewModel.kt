@@ -1,16 +1,19 @@
 package com.example.yourbagbuddy.presentation.viewmodel
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.yourbagbuddy.data.remote.api.FeedbackApiService
-import com.example.yourbagbuddy.data.remote.api.FeedbackRequestBody
 import com.example.yourbagbuddy.domain.repository.AuthRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import retrofit2.HttpException
+import java.net.URLEncoder
+import java.nio.charset.StandardCharsets
 import javax.inject.Inject
 import javax.inject.Named
 
@@ -20,6 +23,10 @@ class SettingsViewModel @Inject constructor(
     private val feedbackApiService: FeedbackApiService,
     @Named("FeedbackSheetUrl") private val feedbackSheetUrl: String
 ) : ViewModel() {
+
+    companion object {
+        private const val TAG = "FeedbackSubmit"
+    }
 
     val currentUser = authRepository.currentUser
 
@@ -54,34 +61,101 @@ class SettingsViewModel @Inject constructor(
                 feedbackSuccess = null,
                 feedbackError = null
             )
-            try {
+            val url = feedbackSheetUrl.trim().removeSuffix("/")
+            val msg = message.orEmpty()
+            val nameVal = name.orEmpty()
+            val emailVal = emailId.orEmpty()
+            val contactVal = ""
+
+            Log.d(TAG, "[START] submitFeedback")
+            Log.d(TAG, "  config URL: $url")
+            Log.d(TAG, "  payload: message='$msg' name='$nameVal' emailId='$emailVal' contactNo='$contactVal' rating=$rating")
+
+            suspend fun doSubmit(targetUrl: String) {
                 feedbackApiService.submitFeedback(
-                    feedbackSheetUrl,
-                    FeedbackRequestBody(
-                        Message = message,
-                        Name = name,
-                        emailId = emailId,
-                        contactNo = "",
-                        Rating = rating
-                    )
+                    targetUrl,
+                    message = msg,
+                    name = nameVal,
+                    emailId = emailVal,
+                    contactNo = contactVal,
+                    rating = rating
                 )
+            }
+
+            fun errorMessage(e: Exception): String = when {
+                e is HttpException && e.code() == 405 -> "Use the deployment URL from Deploy > Manage deployments (not Test deployments)."
+                e is HttpException && e.code() == 302 -> "Redirect received. Use the deployment URL from Deploy > Manage deployments."
+                else -> e.message ?: "Failed to send feedback"
+            }
+
+            try {
+                Log.d(TAG, "[1] POST to config URL...")
+                doSubmit(url)
+                Log.d(TAG, "[1] POST success (200)")
                 _uiState.value = _uiState.value.copy(
                     feedbackSending = false,
                     feedbackSuccess = true,
                     feedbackError = null
                 )
             } catch (e: Exception) {
-                val message = when {
-                    e is HttpException && e.code() == 405 -> "Use the deployment URL from Deploy > Manage deployments (not Test deployments)."
-                    e is HttpException && e.code() == 302 -> "Redirect received. Use the deployment URL from Deploy > Manage deployments."
-                    else -> e.message ?: "Failed to send feedback"
+                val code = (e as? HttpException)?.code()
+                val redirectUrl = (e as? HttpException)?.response()?.raw()?.header("Location")
+                Log.d(TAG, "[1] POST failed: code=$code message=${e.message}")
+                if (code == 302) {
+                    Log.d(TAG, "  302 Location: ${redirectUrl?.take(80)}...")
                 }
-                _uiState.value = _uiState.value.copy(
-                    feedbackSending = false,
-                    feedbackSuccess = false,
-                    feedbackError = message
-                )
+
+                if (e is HttpException && code == 302 && !redirectUrl.isNullOrBlank()) {
+                    try {
+                        val sep = if (redirectUrl.contains("?")) "&" else "?"
+                        val redirectWithParams = redirectUrl + sep +
+                            "message=${URLEncoder.encode(msg, StandardCharsets.UTF_8.name())}" +
+                            "&name=${URLEncoder.encode(nameVal, StandardCharsets.UTF_8.name())}" +
+                            "&emailId=${URLEncoder.encode(emailVal, StandardCharsets.UTF_8.name())}" +
+                            "&contactNo=${URLEncoder.encode(contactVal, StandardCharsets.UTF_8.name())}" +
+                            "&rating=$rating"
+                        Log.d(TAG, "[2] GET to redirect URL with query params:")
+                        Log.d(TAG, "  message=$msg name=$nameVal emailId=$emailVal contactNo=$contactVal rating=$rating")
+                        Log.d(TAG, "  full GET URL length=${redirectWithParams.length} (see OkHttp log for full URL)")
+                        feedbackApiService.submitFeedbackGet(redirectWithParams)
+                        Log.d(TAG, "[2] GET success")
+                        _uiState.value = _uiState.value.copy(
+                            feedbackSending = false,
+                            feedbackSuccess = true,
+                            feedbackError = null
+                        )
+                    } catch (e2: Exception) {
+                        val code2 = (e2 as? HttpException)?.code()
+                        Log.d(TAG, "[2] GET failed: code=$code2 message=${e2.message}")
+                        e2.printStackTrace()
+                        _uiState.value = _uiState.value.copy(
+                            feedbackSending = false,
+                            feedbackSuccess = false,
+                            feedbackError = errorMessage(e2)
+                        )
+                    }
+                } else {
+                    try {
+                        Log.d(TAG, "[retry] delay 1500ms then POST again...")
+                        delay(1500)
+                        doSubmit(url)
+                        Log.d(TAG, "[retry] POST success")
+                        _uiState.value = _uiState.value.copy(
+                            feedbackSending = false,
+                            feedbackSuccess = true,
+                            feedbackError = null
+                        )
+                    } catch (e2: Exception) {
+                        Log.d(TAG, "[retry] POST failed: ${e2.message}")
+                        _uiState.value = _uiState.value.copy(
+                            feedbackSending = false,
+                            feedbackSuccess = false,
+                            feedbackError = errorMessage(e2)
+                        )
+                    }
+                }
             }
+            Log.d(TAG, "[END] submitFeedback result: success=${_uiState.value.feedbackSuccess} error=${_uiState.value.feedbackError}")
         }
     }
 
