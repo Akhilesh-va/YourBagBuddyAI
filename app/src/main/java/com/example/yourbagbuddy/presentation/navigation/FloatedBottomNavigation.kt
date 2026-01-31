@@ -7,6 +7,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -40,23 +41,27 @@ fun FloatedBottomNavigationBar(navController: NavHostController) {
     val items = listOf(
         BottomNavItem(Screen.Home, "Home", Icons.Default.Home),
         BottomNavItem(Screen.Checklist, "Your Checklist", Icons.Default.Menu),
-        BottomNavItem(Screen.BestChoices, "Best Choices", Icons.Default.Add, iconRes = R.drawable.ic_ai_icon),
+        BottomNavItem(Screen.BestChoices, "Ai choices", Icons.Default.Add, iconRes = R.drawable.ic_ai_icon),
         BottomNavItem(Screen.Profile, "Profile", Icons.Default.Settings)
     )
     
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
+    fun isSelected(item: BottomNavItem) =
+        item.screen.route == currentRoute || (item.screen == Screen.Checklist && currentRoute?.startsWith("checklist") == true)
     
-    val selectedIndex = items.indexOfFirst { it.screen.route == currentRoute }
+    val selectedIndex = items.indexOfFirst { isSelected(it) }
         .takeIf { it >= 0 } ?: 0
     
     Box(
         modifier = Modifier
             .fillMaxWidth()
+            // Respect system navigation bar (3-button nav) so the bar and labels
+            // sit above it instead of being overridden.
+            .windowInsetsPadding(WindowInsets.navigationBars)
             // Keep some breathing room from screen edges,
             // make the bar sit a bit lower so it doesn't
-            // visually collide with content like the "Create a trip" button,
-            // and add safe-space above the system gesture bar.
+            // visually collide with content like the "Create a trip" button.
             .padding(start = 16.dp, end = 16.dp, bottom = 12.dp, top = 6.dp)
     ) {
         // Main navigation bar container
@@ -129,7 +134,7 @@ fun FloatedNavItem(
     Column(
         modifier = Modifier
             // Slightly wider so long labels like "Your Checklist"
-            // and "Best Choices" can fit better.
+            // and "Ai choices" can fit better.
             .width(82.dp)
             .clickable(onClick = onClick)
             .padding(vertical = 2.dp),

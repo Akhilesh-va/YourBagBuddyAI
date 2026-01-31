@@ -56,6 +56,21 @@ class ChecklistRepositoryImpl @Inject constructor(
             Result.failure(e)
         }
     }
+
+    override suspend fun deleteAllItemsForTrip(tripId: String): Result<Unit> {
+        return try {
+            val items = checklistItemDao.getChecklistItemsOnce(tripId)
+            val userId = authRepository.getCurrentUser()?.id
+            if (userId != null) {
+                items.forEach { entity ->
+                    firebaseChecklistDataSource.deleteChecklistItem(userId, tripId, entity.id)
+                }
+            }
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
     
     override suspend fun toggleItemPacked(itemId: String, isPacked: Boolean): Result<Unit> {
         return try {

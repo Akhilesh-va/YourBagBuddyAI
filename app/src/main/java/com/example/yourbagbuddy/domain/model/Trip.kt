@@ -11,7 +11,8 @@ data class Trip(
     val numberOfPeople: Int,
     val tripType: TripType,
     val createdDate: Date,
-    val userId: String? = null // null for guest users
+    val userId: String? = null, // null for guest users
+    val sharedListId: String? = null // when set, checklist is collaborative
 )
 
 enum class TripType {

@@ -54,7 +54,7 @@ fun SmartPackScreen(
     Scaffold(
         topBar = {
             com.example.yourbagbuddy.presentation.components.ModernTopAppBar(
-                title = "Best Choices",
+                title = "AI Choices",
                 showBackButton = true,
                 onBackClick = onNavigateBack
             )

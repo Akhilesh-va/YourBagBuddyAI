@@ -16,6 +16,9 @@ interface ChecklistItemDao {
 
     @Query("SELECT * FROM checklist_items WHERE id = :itemId LIMIT 1")
     suspend fun getItemById(itemId: String): ChecklistItemEntity?
+
+    @Query("SELECT * FROM checklist_items WHERE tripId = :tripId")
+    suspend fun getChecklistItemsOnce(tripId: String): List<ChecklistItemEntity>
     
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertItem(item: ChecklistItemEntity)

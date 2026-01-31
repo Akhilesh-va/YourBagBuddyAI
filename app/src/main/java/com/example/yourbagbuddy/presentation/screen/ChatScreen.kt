@@ -291,7 +291,7 @@ private fun InputBar(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 4.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.Bottom,
+            verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             OutlinedTextField(
@@ -299,7 +299,7 @@ private fun InputBar(
                 onValueChange = onValueChange,
                 modifier = Modifier
                     .weight(1f)
-                    .padding(start = 12.dp, top = 4.dp, bottom = 4.dp),
+                    .padding(start = 12.dp),
                 placeholder = {
                     Text(
                         "Ask about packing...",
@@ -324,12 +324,12 @@ private fun InputBar(
                 onClick = onSend,
                 modifier = Modifier
                     .size(48.dp)
-                    .padding(end = 4.dp, bottom = 4.dp),
+                    .padding(end = 4.dp),
                 enabled = enabled,
                 colors = IconButtonDefaults.filledIconButtonColors(
-                    containerColor = Primary,
+                    containerColor = Color(0xFFFF9800),
                     disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                    contentColor = Color.White,
                     disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                 ),
                 shape = CircleShape

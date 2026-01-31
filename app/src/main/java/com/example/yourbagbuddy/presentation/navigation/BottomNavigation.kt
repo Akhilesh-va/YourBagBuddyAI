@@ -27,7 +27,7 @@ fun BottomNavigationBar(navController: NavHostController) {
     val items = listOf(
         BottomNavItem(Screen.Home, "Home", Icons.Default.Home),
         BottomNavItem(Screen.Checklist, "Your Checklist", Icons.Default.Menu),
-        BottomNavItem(Screen.BestChoices, "Best Choices", Icons.Default.Add, iconRes = R.drawable.ic_ai_icon),
+        BottomNavItem(Screen.BestChoices, "Ai choices", Icons.Default.Add, iconRes = R.drawable.ic_ai_icon),
         BottomNavItem(Screen.Profile, "Profile", Icons.Default.Settings)
     )
     
@@ -50,7 +50,7 @@ fun BottomNavigationBar(navController: NavHostController) {
                     }
                 },
                 label = { Text(item.label) },
-                selected = currentRoute == item.screen.route,
+                selected = currentRoute == item.screen.route || (item.screen == Screen.Checklist && currentRoute?.startsWith("checklist") == true),
                 onClick = {
                     navController.navigate(item.screen.route) {
                         // Preserve state of each bottom tab (including ViewModels)

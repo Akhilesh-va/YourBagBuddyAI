@@ -2,7 +2,15 @@ package com.example.yourbagbuddy.presentation.screen
 
 import android.Manifest
 import android.app.Activity
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import android.os.Build
+import android.util.Log
+import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
@@ -16,6 +24,10 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Group
+import androidx.compose.material.icons.filled.Link
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.*
@@ -25,9 +37,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.example.yourbagbuddy.MainActivity
 import com.example.yourbagbuddy.domain.model.RepeatType
+import com.example.yourbagbuddy.domain.model.TravelDocument
 import com.example.yourbagbuddy.presentation.viewmodel.ChecklistViewModel
 import java.text.SimpleDateFormat
 import java.util.*
@@ -36,17 +51,51 @@ import java.util.*
 @Composable
 fun ChecklistScreen(
     onNavigateBack: () -> Unit,
+    initialJoinCode: String? = null,
+    onConsumeJoinCode: () -> Unit = {},
     viewModel: ChecklistViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val context = LocalContext.current
+    LaunchedEffect(uiState.trips, uiState.selectedTripId, uiState.hasTrip) {
+        Log.d("ChecklistUI", "trips: count=${uiState.trips.size} names=${uiState.trips.map { it.name }} selectedTripId=${uiState.selectedTripId} hasTrip=${uiState.hasTrip}")
+    }
+    LaunchedEffect(initialJoinCode) {
+        if (initialJoinCode != null) {
+            viewModel.openJoinDialogWithCode(initialJoinCode)
+            // Do NOT call onConsumeJoinCode() here: it navigates and replaces this screen,
+            // creating a new ViewModel and losing the Join dialog. Stay on checklist?joinCode=...
+            // so the dialog stays visible and the user can tap "Join".
+        }
+    }
+    LaunchedEffect(uiState.shareErrorForToast) {
+        uiState.shareErrorForToast?.let { message ->
+            Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+            viewModel.clearShareErrorForToast()
+        }
+    }
+    LaunchedEffect(uiState.createErrorForToast) {
+        uiState.createErrorForToast?.let { message ->
+            Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+            viewModel.clearCreateErrorForToast()
+        }
+    }
+    LaunchedEffect(uiState.createSuccessForToast) {
+        uiState.createSuccessForToast?.let { message ->
+            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+            viewModel.clearCreateSuccessForToast()
+        }
+    }
     var showAddDialog by remember { mutableStateOf(false) }
     var newItemText by remember { mutableStateOf("") }
     var showChecklistNameDialog by remember { mutableStateOf(false) }
     var checklistNameText by remember { mutableStateOf("") }
     var pendingItemName by remember { mutableStateOf("") }
     var showReminderTimeDialog by remember { mutableStateOf(false) }
+    var showDeleteChecklistDialog by remember { mutableStateOf(false) }
+    var showLeaveListDialog by remember { mutableStateOf(false) }
+    var showChecklistOptionsMenu by remember { mutableStateOf(false) }
 
-    val context = LocalContext.current
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { _ ->
@@ -80,7 +129,7 @@ fun ChecklistScreen(
     val addItemAndClear = {
         val trimmed = newItemText.trim()
         if (trimmed.isNotBlank()) {
-            if (uiState.selectedTripId != null) {
+            if (uiState.selectedTripId != null || uiState.effectiveSharedListId != null) {
                 viewModel.addItem(trimmed)
                 newItemText = ""
             } else {
@@ -135,32 +184,97 @@ fun ChecklistScreen(
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
                                 Text(
-                                    text = if (uiState.selectedTripId != null)
-                                        "Add items to this list below"
-                                    else
-                                        "Select a trip or create a new one",
+                                    text = when {
+                                        uiState.selectedTripId != null || uiState.effectiveSharedListId != null ->
+                                            "Add items to this list below"
+                                        else -> "Select a list, join a group list, or create a new one"
+                                    },
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
+                            var selectedChecklistTab by remember { mutableStateOf(0) }
+                            LaunchedEffect(uiState.selectedSharedListId) {
+                                if (uiState.selectedSharedListId != null) selectedChecklistTab = 1
+                            }
+                            LaunchedEffect(uiState.selectedTripId) {
+                                if (uiState.selectedTripId != null) selectedChecklistTab = 0
+                            }
+                            TabRow(
+                                selectedTabIndex = selectedChecklistTab,
+                                containerColor = MaterialTheme.colorScheme.surface,
+                                contentColor = MaterialTheme.colorScheme.primary
+                            ) {
+                                Tab(
+                                    selected = selectedChecklistTab == 0,
+                                    onClick = {
+                                        selectedChecklistTab = 0
+                                        viewModel.switchToMyChecklistsTab()
+                                    },
+                                    text = { Text("My checklists") }
+                                )
+                                Tab(
+                                    selected = selectedChecklistTab == 1,
+                                    onClick = {
+                                        selectedChecklistTab = 1
+                                        viewModel.switchToSharedListsTab()
+                                    },
+                                    text = { Text("Shared lists") }
+                                )
+                            }
+                            // Scrollable row: only checklist names (so "Join list" and "New" stay visible below)
                             LazyRow(
                                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                                 contentPadding = PaddingValues(end = 4.dp)
                             ) {
-                                items(uiState.trips, key = { it.id }) { trip ->
-                                    FilterChip(
-                                        selected = uiState.selectedTripId == trip.id,
-                                        onClick = { viewModel.selectTrip(trip.id) },
-                                        label = { Text(trip.name) },
-                                        shape = RoundedCornerShape(14.dp),
-                                        colors = FilterChipDefaults.filterChipColors(
-                                            selectedContainerColor = MaterialTheme.colorScheme.primary,
-                                            selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
-                                            containerColor = MaterialTheme.colorScheme.surfaceVariant
+                                if (selectedChecklistTab == 0) {
+                                    items(uiState.trips, key = { it.id }) { trip ->
+                                        FilterChip(
+                                            selected = uiState.selectedTripId == trip.id,
+                                            onClick = { viewModel.selectTrip(trip.id) },
+                                            label = { Text(trip.name) },
+                                            shape = RoundedCornerShape(14.dp),
+                                            colors = FilterChipDefaults.filterChipColors(
+                                                selectedContainerColor = MaterialTheme.colorScheme.primary,
+                                                selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
+                                                containerColor = MaterialTheme.colorScheme.surfaceVariant
+                                            )
                                         )
-                                    )
+                                    }
+                                } else {
+                                    items(uiState.sharedLists, key = { it.id }) { sharedList ->
+                                        FilterChip(
+                                            selected = uiState.selectedSharedListId == sharedList.id,
+                                            onClick = { viewModel.selectSharedList(sharedList.id) },
+                                            label = { Text(sharedList.name) },
+                                            shape = RoundedCornerShape(14.dp),
+                                            colors = FilterChipDefaults.filterChipColors(
+                                                selectedContainerColor = MaterialTheme.colorScheme.tertiary,
+                                                selectedLabelColor = MaterialTheme.colorScheme.onTertiary,
+                                                containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.7f)
+                                            )
+                                        )
+                                    }
                                 }
-                                item {
+                            }
+                            // Always-visible actions: Join list and New (separate from scroll so users can always find them)
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                if (selectedChecklistTab == 0) {
+                                    AssistChip(
+                                        onClick = { viewModel.showJoinDialog() },
+                                        label = { Text("Join list") },
+                                        leadingIcon = {
+                                            Icon(
+                                                Icons.Default.Group,
+                                                contentDescription = null
+                                            )
+                                        },
+                                        shape = RoundedCornerShape(14.dp)
+                                    )
                                     AssistChip(
                                         onClick = {
                                             pendingItemName = ""
@@ -171,6 +285,18 @@ fun ChecklistScreen(
                                         leadingIcon = {
                                             Icon(
                                                 Icons.Default.Add,
+                                                contentDescription = "Create new checklist"
+                                            )
+                                        },
+                                        shape = RoundedCornerShape(14.dp)
+                                    )
+                                } else {
+                                    AssistChip(
+                                        onClick = { viewModel.showJoinDialog() },
+                                        label = { Text("Join list") },
+                                        leadingIcon = {
+                                            Icon(
+                                                Icons.Default.Group,
                                                 contentDescription = null
                                             )
                                         },
@@ -178,29 +304,181 @@ fun ChecklistScreen(
                                     )
                                 }
                             }
-                            if (uiState.hasTrip) {
+                            if (uiState.hasTrip || uiState.sharedLists.isNotEmpty()) {
+                                val selectedSharedList = uiState.sharedLists.firstOrNull { it.id == uiState.selectedSharedListId }
+                                    ?: uiState.trips.firstOrNull { it.id == uiState.selectedTripId }?.let { trip ->
+                                        trip.sharedListId?.let { listId ->
+                                            uiState.sharedLists.firstOrNull { it.id == listId }
+                                        }
+                                    }
+                                val memberCount = selectedSharedList?.memberIds?.size ?: 0
                                 Surface(
                                     shape = RoundedCornerShape(12.dp),
                                     color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f)
                                 ) {
-                                    Row(
+                                    Column(
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .padding(12.dp),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
+                                            .padding(12.dp)
                                     ) {
-                                        Text(
-                                            text = uiState.checklistName.ifBlank { "Checklist" },
-                                            style = MaterialTheme.typography.titleSmall,
-                                            fontWeight = FontWeight.Medium,
-                                            color = MaterialTheme.colorScheme.onPrimaryContainer
-                                        )
-                                        Text(
-                                            text = "${uiState.completedCount}/${uiState.totalCount} Completed",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.9f)
-                                        )
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(
+                                                    text = uiState.checklistName.ifBlank { "Checklist" },
+                                                    style = MaterialTheme.typography.titleSmall,
+                                                    fontWeight = FontWeight.Medium,
+                                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                                )
+                                                if (uiState.isSharedList && memberCount > 0) {
+                                                    Spacer(modifier = Modifier.height(2.dp))
+                                                    Row(
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                                    ) {
+                                                        Icon(
+                                                            Icons.Default.Group,
+                                                            contentDescription = null,
+                                                            modifier = Modifier.size(14.dp),
+                                                            tint = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f)
+                                                        )
+                                                        Text(
+                                                            text = if (memberCount == 1) "1 member" else "$memberCount members",
+                                                            style = MaterialTheme.typography.labelSmall,
+                                                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f)
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                            ) {
+                                                Text(
+                                                    text = "${uiState.completedCount}/${uiState.totalCount} Completed",
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.9f)
+                                                )
+                                            Box {
+                                                IconButton(
+                                                    onClick = { showChecklistOptionsMenu = true },
+                                                    modifier = Modifier.size(40.dp)
+                                                ) {
+                                                    Icon(
+                                                        Icons.Default.MoreVert,
+                                                        contentDescription = "Options",
+                                                        tint = MaterialTheme.colorScheme.onPrimaryContainer
+                                                    )
+                                                }
+                                                DropdownMenu(
+                                                    expanded = showChecklistOptionsMenu,
+                                                    onDismissRequest = { showChecklistOptionsMenu = false }
+                                                ) {
+                                                    val selectedTrip = uiState.trips.firstOrNull { it.id == uiState.selectedTripId }
+                                                    if (selectedTrip != null) {
+                                                        DropdownMenuItem(
+                                                            text = {
+                                                                Row(
+                                                                    verticalAlignment = Alignment.CenterVertically,
+                                                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                                                ) {
+                                                                    Icon(Icons.Default.Group, contentDescription = null, modifier = Modifier.size(20.dp))
+                                                                    Text("Share with group")
+                                                                }
+                                                            },
+                                                            onClick = {
+                                                                showChecklistOptionsMenu = false
+                                                                if (selectedTrip.sharedListId == null)
+                                                                    viewModel.createSharedListAndLinkTrip()
+                                                                else
+                                                                    viewModel.showShareDialogForExistingList()
+                                                            }
+                                                        )
+                                                    }
+                                                    DropdownMenuItem(
+                                                        text = {
+                                                            Row(
+                                                                verticalAlignment = Alignment.CenterVertically,
+                                                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                                            ) {
+                                                                Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(20.dp))
+                                                                Text("Share list")
+                                                            }
+                                                        },
+                                                        onClick = {
+                                                            showChecklistOptionsMenu = false
+                                                            val title = uiState.checklistName.ifBlank { "Packing list" }
+                                                            val lines = uiState.items.map { "• ${it.name}" }
+                                                            val text = listOf(title, "").plus(lines).joinToString("\n")
+                                                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                                            clipboard.setPrimaryClip(ClipData.newPlainText("Packing list", text))
+                                                            Toast.makeText(context, "List copied to clipboard", Toast.LENGTH_SHORT).show()
+                                                            context.startActivity(Intent.createChooser(
+                                                                Intent(Intent.ACTION_SEND).apply {
+                                                                    type = "text/plain"
+                                                                    putExtra(Intent.EXTRA_TEXT, text)
+                                                                },
+                                                                "Share list"
+                                                            ))
+                                                        }
+                                                    )
+                                                    if (uiState.selectedTripId != null) {
+                                                        DropdownMenuItem(
+                                                            text = {
+                                                                Row(
+                                                                    verticalAlignment = Alignment.CenterVertically,
+                                                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                                                ) {
+                                                                    Icon(
+                                                                        Icons.Default.Delete,
+                                                                        contentDescription = null,
+                                                                        modifier = Modifier.size(20.dp),
+                                                                        tint = MaterialTheme.colorScheme.error
+                                                                    )
+                                                                    Text(
+                                                                        "Delete checklist",
+                                                                        color = MaterialTheme.colorScheme.error
+                                                                    )
+                                                                }
+                                                            },
+                                                            onClick = {
+                                                                showChecklistOptionsMenu = false
+                                                                showDeleteChecklistDialog = true
+                                                            }
+                                                        )
+                                                    }
+                                                    if (uiState.selectedSharedListId != null) {
+                                                        DropdownMenuItem(
+                                                            text = {
+                                                                Row(
+                                                                    verticalAlignment = Alignment.CenterVertically,
+                                                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                                                ) {
+                                                                    Icon(
+                                                                        Icons.Default.Delete,
+                                                                        contentDescription = null,
+                                                                        modifier = Modifier.size(20.dp),
+                                                                        tint = MaterialTheme.colorScheme.error
+                                                                    )
+                                                                    Text(
+                                                                        "Leave list",
+                                                                        color = MaterialTheme.colorScheme.error
+                                                                    )
+                                                                }
+                                                            },
+                                                            onClick = {
+                                                                showChecklistOptionsMenu = false
+                                                                showLeaveListDialog = true
+                                                            }
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
                                     }
                                 }
                             }
@@ -284,6 +562,19 @@ fun ChecklistScreen(
                         onRepeatTypeChange = { viewModel.updateReminderRepeatType(it, uiState.repeatIntervalDays); viewModel.saveReminder(uiState.reminderTimeMillis, it, uiState.repeatIntervalDays, uiState.reminderEnabled, uiState.stopWhenCompleted, uiState.stopAtTripStart) },
                         onRepeatIntervalDaysChange = { viewModel.updateReminderRepeatType(uiState.repeatType, it); viewModel.saveReminder(uiState.reminderTimeMillis, uiState.repeatType, it, uiState.reminderEnabled, uiState.stopWhenCompleted, uiState.stopAtTripStart) },
                         onStopConditionsChange = { stopWhenCompleted, stopAtTripStart -> viewModel.updateReminderStopConditions(stopWhenCompleted, stopAtTripStart); viewModel.saveReminder(uiState.reminderTimeMillis, uiState.repeatType, uiState.repeatIntervalDays, uiState.reminderEnabled, stopWhenCompleted, stopAtTripStart) }
+                    )
+                    }
+                    item {
+                    DocumentsCard(
+                        travelDocuments = uiState.travelDocuments,
+                        documentsLoading = uiState.documentsLoading,
+                        onEnableDocuments = { viewModel.enableDocumentsChecklist() },
+                        onToggleDocument = { id, checked -> viewModel.toggleDocumentChecked(id, checked) },
+                        onOpenResource = { url ->
+                            try {
+                                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                            } catch (_: Exception) { }
+                        }
                     )
                     }
                 }
@@ -420,6 +711,11 @@ fun ChecklistScreen(
     }
 
     if (showChecklistNameDialog) {
+        BackHandler {
+            showChecklistNameDialog = false
+            checklistNameText = ""
+            pendingItemName = ""
+        }
         AlertDialog(
             onDismissRequest = {
                 showChecklistNameDialog = false
@@ -498,6 +794,230 @@ fun ChecklistScreen(
                     )
                 ) {
                     Text("Cancel")
+                }
+            }
+        )
+    }
+
+    // Share with group dialog (invite code + shareable link)
+    if (uiState.showShareDialog && uiState.inviteCodeForShare != null) {
+        val inviteCode = uiState.inviteCodeForShare!!
+        val inviteLink = MainActivity.buildJoinLinkHttps(inviteCode)
+        val shareMessage = "Join my packing list in YourBagBuddy! Code: $inviteCode — or tap this link: $inviteLink"
+        val isResharing = uiState.isResharingList
+        AlertDialog(
+            onDismissRequest = { viewModel.dismissShareDialog() },
+            title = { Text(if (isResharing) "Reshare with group" else "Share with group") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        if (isResharing) {
+                            "Same code as before — share the link or code again with anyone who needs to join."
+                        } else {
+                            "Share a link or code with your group. When they tap the link (e.g. in WhatsApp) the app opens and they can join the list."
+                        },
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = inviteCode,
+                                    style = MaterialTheme.typography.headlineSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 4.sp
+                                )
+                                FilledTonalButton(
+                                    onClick = {
+                                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                        clipboard.setPrimaryClip(ClipData.newPlainText("Invite code", inviteCode))
+                                        Toast.makeText(context, "Code copied", Toast.LENGTH_SHORT).show()
+                                    },
+                                    shape = RoundedCornerShape(12.dp)
+                                ) {
+                                    Text("Copy code")
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = inviteLink,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                FilledTonalButton(
+                                    onClick = {
+                                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                        clipboard.setPrimaryClip(ClipData.newPlainText("Join link", inviteLink))
+                                        Toast.makeText(context, "Link copied — tap it to open app and join", Toast.LENGTH_SHORT).show()
+                                    },
+                                    shape = RoundedCornerShape(12.dp)
+                                ) {
+                                    Icon(Icons.Default.Link, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    Spacer(Modifier.width(6.dp))
+                                    Text("Copy link")
+                                }
+                            }
+                        }
+                    }
+                    OutlinedButton(
+                        onClick = {
+                            context.startActivity(Intent.createChooser(
+                                Intent(Intent.ACTION_SEND).apply {
+                                    type = "text/plain"
+                                    putExtra(Intent.EXTRA_TEXT, shareMessage)
+                                    putExtra(Intent.EXTRA_TITLE, "Join my packing list")
+                                },
+                                "Share link"
+                            ))
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("Share link")
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { viewModel.dismissShareDialog() }) {
+                    Text("Done", color = MaterialTheme.colorScheme.primary)
+                }
+            }
+        )
+    }
+
+    // Join list dialog
+    if (uiState.showJoinDialog) {
+        var joinCode by remember { mutableStateOf(uiState.pendingJoinCode ?: "") }
+        LaunchedEffect(uiState.showJoinDialog, uiState.pendingJoinCode) {
+            if (uiState.pendingJoinCode != null) {
+                joinCode = uiState.pendingJoinCode!!
+                viewModel.clearPendingJoinCode()
+            } else if (uiState.showJoinDialog && joinCode.isEmpty()) {
+                joinCode = ""
+            }
+        }
+        AlertDialog(
+            onDismissRequest = { viewModel.dismissJoinDialog() },
+            title = { Text("Join a group list") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        "Enter the invite code shared by your group mate.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    OutlinedTextField(
+                        value = joinCode,
+                        onValueChange = { joinCode = it.uppercase().take(6) },
+                        label = { Text("Invite code") },
+                        placeholder = { Text("ABC123") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                    uiState.joinError?.let { error ->
+                        Text(
+                            text = error,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = { viewModel.joinSharedList(joinCode) },
+                    enabled = joinCode.length >= 4,
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("Join")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.dismissJoinDialog() }) {
+                    Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        )
+    }
+
+    // Delete checklist confirmation
+    if (showDeleteChecklistDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteChecklistDialog = false },
+            title = { Text("Delete checklist?") },
+            text = {
+                Text(
+                    "This will permanently delete \"${uiState.checklistName.ifBlank { "this checklist" }}\" and all its items. This cannot be undone.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.deleteCurrentChecklist()
+                        showDeleteChecklistDialog = false
+                    },
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error
+                    )
+                ) {
+                    Text("Delete")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteChecklistDialog = false }) {
+                    Text("Cancel", color = MaterialTheme.colorScheme.primary)
+                }
+            }
+        )
+    }
+
+    // Leave shared list confirmation
+    if (showLeaveListDialog) {
+        AlertDialog(
+            onDismissRequest = { showLeaveListDialog = false },
+            title = { Text("Leave list?") },
+            text = {
+                Text(
+                    "You will be removed from \"${uiState.checklistName.ifBlank { "this list" }}\". You can rejoin later with the invite code.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.leaveSharedList()
+                        showLeaveListDialog = false
+                    },
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error
+                    )
+                ) {
+                    Text("Leave")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showLeaveListDialog = false }) {
+                    Text("Cancel", color = MaterialTheme.colorScheme.primary)
                 }
             }
         )
@@ -585,6 +1105,180 @@ fun EmptyChecklistState() {
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+        }
+    }
+}
+
+@Composable
+private fun DocumentsCard(
+    travelDocuments: List<TravelDocument>,
+    documentsLoading: Boolean,
+    onEnableDocuments: () -> Unit,
+    onToggleDocument: (String, Boolean) -> Unit,
+    onOpenResource: (String) -> Unit
+) {
+    var expanded by remember { mutableStateOf(true) }
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp, vertical = 8.dp),
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+        border = BorderStroke(
+            1.dp,
+            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    modifier = Modifier.weight(1f),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Documents",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    IconButton(
+                        onClick = { expanded = !expanded },
+                        modifier = Modifier.size(40.dp)
+                    ) {
+                        Icon(
+                            imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                            contentDescription = if (expanded) "Collapse" else "Expand",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+            }
+            Text(
+                text = "Passport, visa, tickets, insurance — with reminders and official links",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            if (travelDocuments.isEmpty()) {
+                if (documentsLoading) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 16.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp),
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                } else {
+                    FilledTonalButton(
+                        onClick = onEnableDocuments,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.filledTonalButtonColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Add documents checklist")
+                    }
+                }
+            } else if (expanded) {
+                HorizontalDivider(
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+                    thickness = 1.dp
+                )
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    travelDocuments.forEach { doc ->
+                        TravelDocumentRow(
+                            document = doc,
+                            onToggle = { onToggleDocument(doc.id, it) },
+                            onOpenResource = doc.resourceUrl?.let { { onOpenResource(it) } }
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TravelDocumentRow(
+    document: TravelDocument,
+    onToggle: (Boolean) -> Unit,
+    onOpenResource: (() -> Unit)?
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.surface,
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Checkbox(
+                checked = document.isChecked,
+                onCheckedChange = onToggle,
+                colors = CheckboxDefaults.colors(
+                    checkedColor = MaterialTheme.colorScheme.primary,
+                    checkmarkColor = MaterialTheme.colorScheme.onPrimary
+                )
+            )
+            Column(
+                modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                Text(
+                    text = document.displayName,
+                    style = MaterialTheme.typography.bodyLarge,
+                    textDecoration = if (document.isChecked) TextDecoration.LineThrough else null,
+                    color = if (document.isChecked)
+                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    else
+                        MaterialTheme.colorScheme.onSurface
+                )
+                document.reminderText?.let { reminder ->
+                    Text(
+                        text = reminder,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+            if (onOpenResource != null) {
+                FilledTonalButton(
+                    onClick = onOpenResource,
+                    shape = RoundedCornerShape(10.dp),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                    colors = ButtonDefaults.filledTonalButtonColors(
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                    )
+                ) {
+                    Icon(
+                        Icons.Default.Link,
+                        contentDescription = "Official resource",
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text("Link", style = MaterialTheme.typography.labelMedium)
+                }
+            }
         }
     }
 }

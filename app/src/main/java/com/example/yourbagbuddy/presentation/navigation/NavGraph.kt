@@ -5,6 +5,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.hilt.navigation.compose.hiltViewModel
+import android.net.Uri
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -17,6 +18,7 @@ import com.example.yourbagbuddy.presentation.screen.LoginScreen
 import com.example.yourbagbuddy.presentation.screen.SignupScreen
 import com.example.yourbagbuddy.presentation.screen.SettingsScreen
 import com.example.yourbagbuddy.presentation.screen.SmartPackScreen
+import com.example.yourbagbuddy.presentation.screen.TravelMedicineScreen
 import com.example.yourbagbuddy.presentation.screen.TripsScreen
 import com.example.yourbagbuddy.presentation.viewmodel.SmartPackViewModel
 
@@ -31,7 +33,7 @@ sealed class Screen(val route: String) {
     object SignUp : Screen("signup")
     object Home : Screen("home")
     object Checklist : Screen("checklist") // "Your Checklist"
-    object BestChoices : Screen("best_choices") // "Best Choices" (AI feature)
+    object BestChoices : Screen("best_choices") // "Ai choices" (AI feature)
     object Profile : Screen("profile") // "Profile"
     object Trips : Screen("trips") // Keep for internal navigation
     object SmartPack : Screen("smart_pack") // Keep for internal navigation
@@ -41,7 +43,11 @@ sealed class Screen(val route: String) {
     object TripDetail : Screen("trip_detail/{tripId}") {
         fun createRoute(tripId: String) = "trip_detail/$tripId"
     }
+    object TravelMedicine : Screen("travel_medicine")
 }
+
+fun checklistRoute(joinCode: String? = null): String =
+    if (joinCode != null) "checklist?joinCode=${Uri.encode(joinCode)}" else Screen.Checklist.route
 
 @Composable
 fun NavGraph(
@@ -50,7 +56,9 @@ fun NavGraph(
     isDarkTheme: Boolean,
     onDarkThemeChange: (Boolean) -> Unit,
     initialTripIdToOpen: String? = null,
-    onClearInitialTripIdToOpen: () -> Unit = {}
+    onClearInitialTripIdToOpen: () -> Unit = {},
+    initialJoinCode: String? = null,
+    onClearInitialJoinCode: () -> Unit = {}
 ) {
     // When opened from packing reminder notification, navigate to that trip’s checklist.
     LaunchedEffect(initialTripIdToOpen) {
@@ -60,6 +68,15 @@ fun NavGraph(
                 popUpTo(Screen.Home.route) { inclusive = false }
             }
             onClearInitialTripIdToOpen()
+        }
+    }
+    LaunchedEffect(initialJoinCode) {
+        if (initialJoinCode != null) {
+            navController.navigate(checklistRoute(initialJoinCode)) {
+                launchSingleTop = true
+                popUpTo(Screen.Home.route) { inclusive = false }
+            }
+            onClearInitialJoinCode()
         }
     }
     NavHost(
@@ -129,13 +146,27 @@ fun NavGraph(
         composable(Screen.Home.route) {
             HomeScreen(
                 onNavigateToTrips = { navController.navigate(Screen.Checklist.route) },
-                onNavigateToCreateTrip = { navController.navigate(Screen.Checklist.route) }
+                onNavigateToCreateTrip = { navController.navigate(Screen.Checklist.route) },
+                onNavigateToTravelMedicine = { navController.navigate(Screen.TravelMedicine.route) }
             )
         }
         // Bottom Navigation Screens
-        composable(Screen.Checklist.route) {
+        composable(
+            route = "checklist?joinCode={joinCode}",
+            arguments = listOf(
+                navArgument("joinCode") { type = NavType.StringType; nullable = true; defaultValue = null }
+            )
+        ) { backStackEntry ->
+            val initialJoinCode = backStackEntry.arguments?.getString("joinCode")
             ChecklistScreen(
-                onNavigateBack = { navController.popBackStack() }
+                onNavigateBack = { navController.popBackStack() },
+                initialJoinCode = initialJoinCode,
+                onConsumeJoinCode = {
+                    navController.navigate(Screen.Checklist.route) {
+                        popUpTo(Screen.Checklist.route) { inclusive = true }
+                        launchSingleTop = true
+                    }
+                }
             )
         }
         composable(Screen.BestChoices.route) {
@@ -157,7 +188,8 @@ fun NavGraph(
                 onDarkThemeChange = onDarkThemeChange,
                 onNavigateBack = { navController.popBackStack() },
                 onNavigateToLogin = { navController.navigate(loginRoute(Screen.Profile.route)) },
-                onNavigateToSignUp = { navController.navigate(signupRoute(Screen.Profile.route)) }
+                onNavigateToSignUp = { navController.navigate(signupRoute(Screen.Profile.route)) },
+                onNavigateToTravelMedicine = { navController.navigate(Screen.TravelMedicine.route) }
             )
         }
         // Internal navigation screens (not in bottom nav)
@@ -186,16 +218,23 @@ fun NavGraph(
             SettingsScreen(
                 isDarkTheme = isDarkTheme,
                 onDarkThemeChange = onDarkThemeChange,
-                 onNavigateBack = { navController.popBackStack() },
+                onNavigateBack = { navController.popBackStack() },
                 onNavigateToLogin = { navController.navigate(loginRoute(Screen.Profile.route)) },
-                onNavigateToSignUp = { navController.navigate(signupRoute(Screen.Profile.route)) }
+                onNavigateToSignUp = { navController.navigate(signupRoute(Screen.Profile.route)) },
+                onNavigateToTravelMedicine = { navController.navigate(Screen.TravelMedicine.route) }
             )
         }
         composable(Screen.TripDetail.route) { backStackEntry ->
             val tripId = backStackEntry.arguments?.getString("tripId") ?: ""
             com.example.yourbagbuddy.presentation.screen.TripDetailScreen(
                 tripId = tripId,
-                onNavigateBack = { navController.popBackStack() }
+                onNavigateBack = { navController.popBackStack() },
+                onDuplicateSuccess = { newTripId ->
+                    navController.navigate(Screen.TripDetail.createRoute(newTripId)) {
+                        popUpTo(Screen.TripDetail.createRoute(tripId)) { inclusive = true }
+                        launchSingleTop = true
+                    }
+                }
             )
         }
 
@@ -224,6 +263,11 @@ fun NavGraph(
                 onNavigateToSignUp = {
                     navController.navigate(signupRoute(Screen.Chat.route))
                 }
+            )
+        }
+        composable(Screen.TravelMedicine.route) {
+            TravelMedicineScreen(
+                onNavigateBack = { navController.popBackStack() }
             )
         }
     }

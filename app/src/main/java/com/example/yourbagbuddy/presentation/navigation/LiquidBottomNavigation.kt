@@ -44,14 +44,16 @@ fun LiquidBottomNavigationBar(navController: NavHostController) {
     val items = listOf(
         BottomNavItem(Screen.Home, "Home", Icons.Default.Home),
         BottomNavItem(Screen.Checklist, "Your Checklist", Icons.Default.Menu),
-        BottomNavItem(Screen.BestChoices, "Best Choices", Icons.Default.Add, iconRes = R.drawable.ic_ai_icon),
+        BottomNavItem(Screen.BestChoices, "Ai choices", Icons.Default.Add, iconRes = R.drawable.ic_ai_icon),
         BottomNavItem(Screen.Profile, "Profile", Icons.Default.Settings)
     )
     
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
+    fun isSelected(item: BottomNavItem) =
+        item.screen.route == currentRoute || (item.screen == Screen.Checklist && currentRoute?.startsWith("checklist") == true)
     
-    val selectedIndex = items.indexOfFirst { it.screen.route == currentRoute }
+    val selectedIndex = items.indexOfFirst { isSelected(it) }
         .takeIf { it >= 0 } ?: 0
     
     Box(

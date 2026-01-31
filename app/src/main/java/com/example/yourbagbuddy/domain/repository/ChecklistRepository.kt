@@ -8,5 +8,6 @@ interface ChecklistRepository {
     suspend fun addChecklistItem(item: ChecklistItem): Result<Unit>
     suspend fun updateChecklistItem(item: ChecklistItem): Result<Unit>
     suspend fun deleteChecklistItem(itemId: String): Result<Unit>
+    suspend fun deleteAllItemsForTrip(tripId: String): Result<Unit>
     suspend fun toggleItemPacked(itemId: String, isPacked: Boolean): Result<Unit>
 }

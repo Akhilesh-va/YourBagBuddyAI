@@ -6,6 +6,8 @@ import com.example.yourbagbuddy.data.repository.ChecklistRepositoryImpl
 import com.example.yourbagbuddy.data.repository.MedicineRepositoryImpl
 import com.example.yourbagbuddy.data.repository.ReminderRepositoryImpl
 import com.example.yourbagbuddy.data.repository.SmartPackRepositoryImpl
+import com.example.yourbagbuddy.data.repository.TravelDocumentRepositoryImpl
+import com.example.yourbagbuddy.data.repository.SharedListRepositoryImpl
 import com.example.yourbagbuddy.data.repository.TripRepositoryImpl
 import com.example.yourbagbuddy.domain.repository.AuthRepository
 import com.example.yourbagbuddy.domain.repository.ChatRepository
@@ -13,6 +15,8 @@ import com.example.yourbagbuddy.domain.repository.ChecklistRepository
 import com.example.yourbagbuddy.domain.repository.MedicineRepository
 import com.example.yourbagbuddy.domain.repository.ReminderRepository
 import com.example.yourbagbuddy.domain.repository.SmartPackRepository
+import com.example.yourbagbuddy.domain.repository.TravelDocumentRepository
+import com.example.yourbagbuddy.domain.repository.SharedListRepository
 import com.example.yourbagbuddy.domain.repository.TripRepository
 import dagger.Binds
 import dagger.Module
@@ -65,4 +69,16 @@ abstract class RepositoryModule {
     abstract fun bindReminderRepository(
         reminderRepositoryImpl: ReminderRepositoryImpl
     ): ReminderRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindTravelDocumentRepository(
+        travelDocumentRepositoryImpl: TravelDocumentRepositoryImpl
+    ): TravelDocumentRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindSharedListRepository(
+        sharedListRepositoryImpl: SharedListRepositoryImpl
+    ): SharedListRepository
 }

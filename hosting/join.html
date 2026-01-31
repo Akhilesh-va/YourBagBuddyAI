@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Join list – YourBagBuddy</title>
+  <script>
+    (function() {
+      var path = window.location.pathname;
+      var match = path.match(/^\/join\/([A-Za-z0-9]+)\/?$/);
+      var code = match ? match[1] : '';
+      if (code) {
+        window.location.replace('yourbagbuddy://join/' + code);
+      }
+    })();
+  </script>
+  <style>
+    body { font-family: system-ui, sans-serif; text-align: center; padding: 2rem; max-width: 360px; margin: 0 auto; }
+    a { color: #ff6b35; }
+    p { margin: 1rem 0; }
+  </style>
+</head>
+<body>
+  <h1>YourBagBuddy</h1>
+  <p>Opening the app to join the list…</p>
+  <p>If the app didn't open, <a href="#" id="openApp">tap here to open in app</a>.</p>
+  <p><a href="https://play.google.com/store/apps/details?id=com.example.yourbagbuddy" id="playStore">Get the app on Play Store</a></p>
+  <script>
+    (function() {
+      var path = window.location.pathname;
+      var match = path.match(/^\/join\/([A-Za-z0-9]+)\/?$/);
+      var code = match ? match[1] : '';
+      if (code) {
+        document.getElementById('openApp').href = 'yourbagbuddy://join/' + code;
+      }
+    })();
+  </script>
+</body>
+</html>

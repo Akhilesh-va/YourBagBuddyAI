@@ -18,7 +18,8 @@ data class TripEntity(
     val tripType: String,
     val createdDate: Long,
     val userId: String? = null,
-    val lastSyncedAt: Long? = null
+    val lastSyncedAt: Long? = null,
+    val sharedListId: String? = null
 ) {
     fun toDomain(): Trip {
         return Trip(
@@ -30,7 +31,8 @@ data class TripEntity(
             numberOfPeople = numberOfPeople,
             tripType = TripType.valueOf(tripType),
             createdDate = Date(createdDate),
-            userId = userId
+            userId = userId,
+            sharedListId = sharedListId
         )
     }
     
@@ -46,7 +48,8 @@ data class TripEntity(
                 tripType = trip.tripType.name,
                 createdDate = trip.createdDate.time,
                 userId = trip.userId,
-                lastSyncedAt = null
+                lastSyncedAt = null,
+                sharedListId = trip.sharedListId
             )
         }
     }

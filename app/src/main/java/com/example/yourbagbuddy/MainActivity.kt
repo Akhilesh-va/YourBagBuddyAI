@@ -1,6 +1,7 @@
 package com.example.yourbagbuddy
 
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -21,6 +22,7 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -38,6 +40,7 @@ import com.example.yourbagbuddy.presentation.navigation.Screen
 import com.example.yourbagbuddy.presentation.screen.SplashScreen
 import com.example.yourbagbuddy.presentation.ui.theme.YourBagBuddyTheme
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.flow.MutableStateFlow
 import javax.inject.Inject
 
 @AndroidEntryPoint
@@ -46,15 +49,28 @@ class MainActivity : ComponentActivity() {
     @Inject
     lateinit var authRepository: AuthRepository
 
+    /** When the app is opened via yourbagbuddy://join/CODE (or brought to foreground with that intent), this holds the code until consumed. */
+    private val pendingJoinCodeFlow = MutableStateFlow<String?>(null)
+
     companion object {
         /** Intent extra set by packing reminder notification; open app to this trip’s checklist. */
         const val EXTRA_OPEN_TRIP_ID = "com.example.yourbagbuddy.OPEN_TRIP_ID"
+        const val JOIN_LINK_SCHEME = "yourbagbuddy"
+        const val JOIN_LINK_HOST = "join"
+        /** HTTPS join link base (clickable in WhatsApp/SMS). Path: /join/CODE */
+        const val JOIN_LINK_HTTPS_HOST = "yourbagbuddy-ai.firebaseapp.com"
+        fun buildJoinLinkHttps(inviteCode: String): String =
+            "https://$JOIN_LINK_HTTPS_HOST/join/$inviteCode"
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        intent?.data?.toString()?.let { link ->
-            authRepository.storePendingEmailLinkIfSignInLink(link)
+        val data = intent?.data
+        when {
+            data != null && parseJoinCodeFromIntent(intent) != null ->
+                pendingJoinCodeFlow.value = parseJoinCodeFromIntent(intent)
+            data != null -> authRepository.storePendingEmailLinkIfSignInLink(data.toString())
+            else -> Unit
         }
         enableEdgeToEdge()
         setContent {
@@ -69,13 +85,12 @@ class MainActivity : ComponentActivity() {
                 val navBackStackEntry by navController.currentBackStackEntryAsState()
                 val currentRoute = navBackStackEntry?.destination?.route
 
-                // Show bottom navigation only on primary destinations
+                // Show bottom navigation only on primary destinations (checklist includes checklist?joinCode=...)
                 val showBottomBar = currentRoute in listOf(
                     Screen.Home.route,
-                    Screen.Checklist.route,
                     Screen.BestChoices.route,
                     Screen.Profile.route
-                )
+                ) || currentRoute == Screen.Checklist.route || (currentRoute?.startsWith("checklist") == true)
 
                 AnimatedContent(
                     targetState = showSplash,
@@ -90,6 +105,7 @@ class MainActivity : ComponentActivity() {
                         )
                     } else {
                         var openTripIdFromNotification by remember { mutableStateOf(intent?.getStringExtra(EXTRA_OPEN_TRIP_ID)) }
+                        val pendingJoinCode by pendingJoinCodeFlow.collectAsState(initial = null)
                         Box(modifier = Modifier.fillMaxSize()) {
                             Scaffold(
                                 modifier = Modifier.fillMaxSize(),
@@ -106,12 +122,14 @@ class MainActivity : ComponentActivity() {
                                     onDarkThemeChange = { isDarkTheme = it },
                                     initialTripIdToOpen = openTripIdFromNotification,
                                     onClearInitialTripIdToOpen = { openTripIdFromNotification = null },
+                                    initialJoinCode = pendingJoinCode,
+                                    onClearInitialJoinCode = { pendingJoinCodeFlow.value = null },
                                     modifier = Modifier
                                         .fillMaxSize()
-                                        .padding(bottom = innerPadding.calculateBottomPadding())
+                                        .padding(innerPadding)
                                 )
                             }
-                            // Floating chat icon – visible only on Best Choices screen
+                            // Floating chat icon – visible only on Ai choices screen
                             if (currentRoute == Screen.BestChoices.route) {
                                 FloatingActionButton(
                                     onClick = {
@@ -121,7 +139,7 @@ class MainActivity : ComponentActivity() {
                                     },
                                     modifier = Modifier
                                         .align(Alignment.BottomEnd)
-                                        .padding(end = 24.dp, bottom = 100.dp),
+                                        .padding(end = 24.dp, bottom = 92.dp),
                                     shape = CircleShape,
                                     containerColor = MaterialTheme.colorScheme.primary,
                                     contentColor = MaterialTheme.colorScheme.onPrimary
@@ -143,8 +161,23 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        intent.data?.toString()?.let { link ->
-            authRepository.storePendingEmailLinkIfSignInLink(link)
+        val data = intent.data
+        when {
+            data != null && parseJoinCodeFromIntent(intent) != null ->
+                pendingJoinCodeFlow.value = parseJoinCodeFromIntent(intent)
+            data != null -> authRepository.storePendingEmailLinkIfSignInLink(data.toString())
+            else -> Unit
+        }
+    }
+
+    private fun parseJoinCodeFromIntent(intent: Intent?): String? {
+        val data = intent?.data ?: return null
+        return when {
+            data.scheme == JOIN_LINK_SCHEME && data.host == JOIN_LINK_HOST ->
+                data.path?.trimStart('/')?.takeIf { it.isNotBlank() }
+            data.scheme == "https" && data.host == JOIN_LINK_HTTPS_HOST && data.path?.startsWith("/join") == true ->
+                data.path?.removePrefix("/join")?.trimStart('/')?.takeIf { it.isNotBlank() }
+            else -> null
         }
     }
 }

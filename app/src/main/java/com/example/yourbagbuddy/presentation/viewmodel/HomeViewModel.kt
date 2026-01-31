@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.yourbagbuddy.domain.model.Trip
 import com.example.yourbagbuddy.domain.model.User
 import com.example.yourbagbuddy.domain.repository.AuthRepository
+import com.example.yourbagbuddy.domain.usecase.trip.DuplicateTripUseCase
 import com.example.yourbagbuddy.domain.usecase.trip.GetAllTripsUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -18,7 +19,8 @@ import javax.inject.Inject
 class HomeViewModel @Inject constructor(
     private val getAllTripsUseCase: GetAllTripsUseCase,
     private val authRepository: AuthRepository,
-    private val travelTipService: TravelTipService
+    private val travelTipService: TravelTipService,
+    private val duplicateTripUseCase: DuplicateTripUseCase
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(HomeUiState())
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
@@ -81,9 +83,16 @@ class HomeViewModel @Inject constructor(
     }
     
     private fun getUpcomingTrip(trips: List<Trip>): Trip? {
-        val now = Calendar.getInstance().time
+        val cal = Calendar.getInstance()
+        val now = cal.time
+        // Start of today (00:00:00) so trips that start "today" still show as upcoming
+        cal.set(Calendar.HOUR_OF_DAY, 0)
+        cal.set(Calendar.MINUTE, 0)
+        cal.set(Calendar.SECOND, 0)
+        cal.set(Calendar.MILLISECOND, 0)
+        val startOfToday = cal.time
         return trips
-            .filter { it.startDate.after(now) }
+            .filter { !it.startDate.before(startOfToday) }
             .minByOrNull { it.startDate.time }
     }
     
@@ -93,6 +102,10 @@ class HomeViewModel @Inject constructor(
             !user.displayName.isNullOrBlank() -> "Hi ${user.displayName}"
             else -> "Hi Traveller"
         }
+    }
+
+    suspend fun duplicateTrip(tripId: String): Result<String> {
+        return duplicateTripUseCase(tripId)
     }
 }
 

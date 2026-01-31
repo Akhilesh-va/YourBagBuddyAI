@@ -1,5 +1,10 @@
 package com.example.yourbagbuddy.presentation.screen
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.content.Intent
+import android.widget.Toast
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.navigationBars
@@ -9,17 +14,24 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import kotlinx.coroutines.launch
 import com.example.yourbagbuddy.domain.model.ItemCategory
 import com.example.yourbagbuddy.presentation.viewmodel.TripDetailViewModel
 
@@ -28,20 +40,90 @@ import com.example.yourbagbuddy.presentation.viewmodel.TripDetailViewModel
 fun TripDetailScreen(
     tripId: String,
     onNavigateBack: () -> Unit,
+    onDuplicateSuccess: (String) -> Unit = {},
     viewModel: TripDetailViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var showMenu by remember { mutableStateOf(false) }
+
     LaunchedEffect(tripId) {
         viewModel.loadChecklist(tripId)
     }
-    
+
+    fun shareListText(): String {
+        val title = uiState.trip?.name ?: "Packing list"
+        val lines = uiState.items.map { "• ${it.name}" }
+        return listOf("$title", "").plus(lines).joinToString("\n")
+    }
+
+    fun copyToClipboardAndShare() {
+        val text = shareListText()
+        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        clipboard.setPrimaryClip(ClipData.newPlainText("Packing list", text))
+        Toast.makeText(context, "List copied to clipboard", Toast.LENGTH_SHORT).show()
+        context.startActivity(Intent.createChooser(
+            Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(Intent.EXTRA_TEXT, text)
+            },
+            "Share list"
+        ))
+    }
+
     Scaffold(
         topBar = {
             com.example.yourbagbuddy.presentation.components.ModernTopAppBar(
-                title = "Packing List",
+                title = uiState.trip?.name ?: "Packing List",
                 showBackButton = true,
-                onBackClick = onNavigateBack
+                onBackClick = onNavigateBack,
+                actions = {
+                    IconButton(onClick = { showMenu = true }) {
+                        Icon(
+                            Icons.Default.MoreVert,
+                            contentDescription = "More options"
+                        )
+                    }
+                    DropdownMenu(
+                        expanded = showMenu,
+                        onDismissRequest = { showMenu = false }
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("Share list") },
+                            onClick = {
+                                showMenu = false
+                                copyToClipboardAndShare()
+                            },
+                            leadingIcon = {
+                                Icon(Icons.Default.Share, contentDescription = null)
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Duplicate trip") },
+                            onClick = {
+                                showMenu = false
+                                scope.launch {
+                                    viewModel.duplicateTrip(tripId).fold(
+                                        onSuccess = { newTripId ->
+                                            Toast.makeText(context, "Trip duplicated", Toast.LENGTH_SHORT).show()
+                                            onDuplicateSuccess(newTripId)
+                                        },
+                                        onFailure = {
+                                            Toast.makeText(context, "Could not duplicate trip", Toast.LENGTH_SHORT).show()
+                                        }
+                                    )
+                                }
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    Icons.Default.Add,
+                                    contentDescription = null
+                                )
+                            }
+                        )
+                    }
+                }
             )
         },
         floatingActionButton = {

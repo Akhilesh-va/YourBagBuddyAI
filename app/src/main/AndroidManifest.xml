@@ -48,6 +48,26 @@
                     android:host="yourbagbuddy-ai.firebaseapp.com"
                     android:pathPrefix="/__/auth/links" />
             </intent-filter>
+            <!-- Share with group: custom scheme (yourbagbuddy://join/CODE) -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:scheme="yourbagbuddy"
+                    android:host="join"
+                    android:pathPrefix="/" />
+            </intent-filter>
+            <!-- Share with group: HTTPS link (clickable in WhatsApp/SMS). Opens app when installed. -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:scheme="https"
+                    android:host="yourbagbuddy-ai.firebaseapp.com"
+                    android:pathPrefix="/join" />
+            </intent-filter>
         </activity>
     </application>
 

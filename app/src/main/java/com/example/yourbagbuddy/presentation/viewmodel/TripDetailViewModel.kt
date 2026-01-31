@@ -7,10 +7,13 @@ import com.example.yourbagbuddy.domain.model.Trip
 import com.example.yourbagbuddy.domain.usecase.checklist.AddChecklistItemUseCase
 import com.example.yourbagbuddy.domain.usecase.checklist.GetChecklistItemsUseCase
 import com.example.yourbagbuddy.domain.usecase.checklist.ToggleItemPackedUseCase
+import com.example.yourbagbuddy.domain.usecase.trip.DuplicateTripUseCase
+import com.example.yourbagbuddy.domain.usecase.trip.GetTripByIdUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -18,13 +21,19 @@ import javax.inject.Inject
 class TripDetailViewModel @Inject constructor(
     private val getChecklistItemsUseCase: GetChecklistItemsUseCase,
     private val addChecklistItemUseCase: AddChecklistItemUseCase,
-    private val toggleItemPackedUseCase: ToggleItemPackedUseCase
+    private val toggleItemPackedUseCase: ToggleItemPackedUseCase,
+    private val getTripByIdUseCase: GetTripByIdUseCase,
+    private val duplicateTripUseCase: DuplicateTripUseCase
 ) : ViewModel() {
-    
+
     private val _uiState = MutableStateFlow(TripDetailUiState())
     val uiState: StateFlow<TripDetailUiState> = _uiState.asStateFlow()
-    
+
     fun loadChecklist(tripId: String) {
+        viewModelScope.launch {
+            val trip = getTripByIdUseCase(tripId).first()
+            _uiState.value = _uiState.value.copy(trip = trip)
+        }
         viewModelScope.launch {
             getChecklistItemsUseCase(tripId).collect { items ->
                 val packedCount = items.count { it.isPacked }
@@ -69,6 +78,10 @@ class TripDetailViewModel @Inject constructor(
     
     fun clearError() {
         _uiState.value = _uiState.value.copy(error = null)
+    }
+
+    suspend fun duplicateTrip(tripId: String): Result<String> {
+        return duplicateTripUseCase(tripId)
     }
 }
 
